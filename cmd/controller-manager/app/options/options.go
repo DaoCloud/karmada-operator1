@@ -36,7 +36,7 @@ type Options struct {
 	ChartVersion string
 }
 
-func NewControllerManagerOptions() (*Options, error) {
+func NewOptions() (*Options, error) {
 	var (
 		leaderElection   componentbaseconfigv1alpha1.LeaderElectionConfiguration
 		clientConnection componentbaseconfigv1alpha1.ClientConnectionConfiguration
@@ -99,6 +99,7 @@ func (o *Options) Config() (*config.Config, error) {
 	if err != nil {
 		return nil, err
 	}
+
 	kubeconfig.ContentConfig.AcceptContentTypes = o.ClientConnection.AcceptContentTypes
 	kubeconfig.ContentConfig.ContentType = o.ClientConnection.ContentType
 	kubeconfig.QPS = o.ClientConnection.QPS
