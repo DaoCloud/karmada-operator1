@@ -35,7 +35,7 @@ creation-date: 2022-07-12
 
 ### 架构图
 
-![](karmada-installer.svg)
+![](./svg/karmada-installer.svg)
 
 ### 安装阶段
 
@@ -52,7 +52,7 @@ creation-date: 2022-07-12
 
 * Completed：所有步骤都成功运行后，将 phase 置为 completed。
 
-![](karmada-phase.svg)
+![](./svg/karmada-phase.svg)
 
 ### CRD 设计
 

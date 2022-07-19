@@ -28,7 +28,7 @@ import (
 )
 
 func NewControllerManagerCommand() *cobra.Command {
-	opts, _ := options.NewControllerManagerOptions()
+	opts, _ := options.NewOptions()
 	cmd := &cobra.Command{
 		Use: "karmada-operator",
 		PersistentPreRunE: func(*cobra.Command, []string) error {
@@ -131,7 +131,7 @@ func RunManager(config *rest.Config, stopCh <-chan struct{}) error {
 		klog.Errorf("Failed to wait for cache sync")
 	}
 
-	klog.Infof("informer caches is synced: %v")
+	klog.Infof("informer caches is synced: %s", "install informer")
 
 	go controller.Run(1, stopCh)
 

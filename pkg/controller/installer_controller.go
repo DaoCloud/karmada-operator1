@@ -1,14 +1,17 @@
 package controller
 
 import (
+	"context"
 	"sync"
 	"time"
 
 	"k8s.io/apimachinery/pkg/api/equality"
 	apierrors "k8s.io/apimachinery/pkg/api/errors"
+	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/client-go/tools/cache"
 	"k8s.io/client-go/util/workqueue"
 	"k8s.io/klog/v2"
+	"sigs.k8s.io/controller-runtime/pkg/controller/controllerutil"
 
 	installv1alpha1 "github.com/daocloud/karmada-operator/pkg/apis/install/v1alpha1"
 	clientset "github.com/daocloud/karmada-operator/pkg/generated/clientset/versioned"
@@ -16,7 +19,10 @@ import (
 	installliter "github.com/daocloud/karmada-operator/pkg/generated/listers/install/v1alpha1"
 )
 
-const maxClusterSynchroRetry = 15
+const (
+	maxClusterSynchroRetry = 15
+	ControllerFinalizer    = "karmada.install.io/installer-controller"
+)
 
 type Controller struct {
 	runLock sync.Mutex
@@ -133,6 +139,38 @@ func (c *Controller) processNext() (continued bool) {
 	return
 }
 
-func (c *Controller) reconcile(*installv1alpha1.KarmadaDeployment) (err error) {
+func (c *Controller) reconcile(kd *installv1alpha1.KarmadaDeployment) (err error) {
+	if !kd.DeletionTimestamp.IsZero() {
+		klog.InfoS("remove karmadaDeployment", "karmadaDeployment", kd.Name)
+
+		// TODO: delete event
+
+		if !controllerutil.ContainsFinalizer(kd, ControllerFinalizer) {
+			return nil
+		}
+
+		if removed := controllerutil.RemoveFinalizer(kd, ControllerFinalizer); removed {
+
+			_, err := c.client.InstallV1alpha1().KarmadaDeployments().
+				Update(context.TODO(), kd, metav1.UpdateOptions{})
+			if err != nil {
+				return err
+			}
+		}
+		return nil
+	}
+
+	// ensure finalizer
+	if !controllerutil.ContainsFinalizer(kd, ControllerFinalizer) {
+		if updated := controllerutil.AddFinalizer(kd, ControllerFinalizer); updated {
+
+			_, err := c.client.InstallV1alpha1().KarmadaDeployments().
+				Update(context.TODO(), kd, metav1.UpdateOptions{})
+			if err != nil {
+				return err
+			}
+		}
+	}
+
 	return err
 }
