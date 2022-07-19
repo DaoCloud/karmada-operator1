@@ -18,6 +18,7 @@ import (
 
 	"github.com/daocloud/karmada-operator/cmd/controller-manager/app/config"
 	crdclientset "github.com/daocloud/karmada-operator/pkg/generated/clientset/versioned"
+	helminstaller "github.com/daocloud/karmada-operator/pkg/installer/helm"
 )
 
 const (
@@ -32,11 +33,12 @@ type Options struct {
 
 	Master       string
 	Kubeconfig   string
-	ChartRepo    string
+	ChartName    string
+	ChartRepoURL string
 	ChartVersion string
 }
 
-func NewControllerManagerOptions() (*Options, error) {
+func NewOptions() (*Options, error) {
 	var (
 		leaderElection   componentbaseconfigv1alpha1.LeaderElectionConfiguration
 		clientConnection componentbaseconfigv1alpha1.ClientConnectionConfiguration
@@ -71,8 +73,9 @@ func (o *Options) Flags() cliflag.NamedFlagSets {
 	genericfs.StringVar(&o.ClientConnection.ContentType, "kube-api-content-type", o.ClientConnection.ContentType, "Content type of requests sent to apiserver.")
 	genericfs.Float32Var(&o.ClientConnection.QPS, "kube-api-qps", o.ClientConnection.QPS, "QPS to use while talking with kubernetes apiserver.")
 	genericfs.Int32Var(&o.ClientConnection.Burst, "kube-api-burst", o.ClientConnection.Burst, "Burst to use while talking with kubernetes apiserver.")
-	genericfs.StringVar(&o.ChartRepo, "chart-repo", o.ChartRepo, "helm repo to karmada chart")
-	genericfs.StringVar(&o.ChartVersion, "karmada-chart-version", o.ChartVersion, "chart version to karmada")
+	genericfs.StringVar(&o.ChartRepoURL, "chart-repo-url", o.ChartRepoURL, "helm repo to karmada chart")
+	genericfs.StringVar(&o.ChartName, "chart-name", o.ChartName, "helm repo to karmada chart")
+	genericfs.StringVar(&o.ChartVersion, "chart-version", o.ChartVersion, "chart version to karmada")
 
 	options.BindLeaderElectionFlags(&o.LeaderElection, genericfs)
 
@@ -99,6 +102,7 @@ func (o *Options) Config() (*config.Config, error) {
 	if err != nil {
 		return nil, err
 	}
+
 	kubeconfig.ContentConfig.AcceptContentTypes = o.ClientConnection.AcceptContentTypes
 	kubeconfig.ContentConfig.ContentType = o.ClientConnection.ContentType
 	kubeconfig.QPS = o.ClientConnection.QPS
@@ -118,12 +122,18 @@ func (o *Options) Config() (*config.Config, error) {
 	eventBroadcaster.StartRecordingToSink(&v1core.EventSinkImpl{Interface: client.CoreV1().Events("")})
 	eventRecorder := eventBroadcaster.NewRecorder(scheme.Scheme, v1.EventSource{Component: ControllerManagerUserAgent})
 
-	return &config.Config{
-		Client:        client,
-		CRDClient:     crdclient,
-		Kubeconfig:    kubeconfig,
-		EventRecorder: eventRecorder,
+	chartResource := &helminstaller.ChartResource{
+		Name:    o.ChartName,
+		Version: o.ChartVersion,
+		RepoURL: o.ChartRepoURL,
+	}
 
+	return &config.Config{
+		Client:         client,
+		CRDClient:      crdclient,
+		Kubeconfig:     kubeconfig,
+		EventRecorder:  eventRecorder,
+		ChartResource:  chartResource,
 		LeaderElection: o.LeaderElection,
 	}, nil
 }

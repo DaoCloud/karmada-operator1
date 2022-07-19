@@ -7,6 +7,7 @@ import (
 	componentbaseconfig "k8s.io/component-base/config"
 
 	crdclientset "github.com/daocloud/karmada-operator/pkg/generated/clientset/versioned"
+	helminstaller "github.com/daocloud/karmada-operator/pkg/installer/helm"
 )
 
 type Config struct {
@@ -15,5 +16,6 @@ type Config struct {
 	CRDClient     *crdclientset.Clientset
 	EventRecorder record.EventRecorder
 
+	ChartResource  *helminstaller.ChartResource
 	LeaderElection componentbaseconfig.LeaderElectionConfiguration
 }

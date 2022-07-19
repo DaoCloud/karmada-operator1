@@ -1,0 +1,29 @@
+apiVersion: install.karmada.io
+kind: KarmadaDeployment
+metadata:
+  name: demo-kd
+spec:
+  mode: Helm
+  controlPlane:
+    namespace: karmda-system
+    endPointCfg:
+      secretRef:
+        namespace: default
+        name: karmada-installer
+    etcd:
+      storageMode: hostPath
+    modules:
+      - name: aggregatedApiServer
+        replicas: 2
+        image: swr.ap-southeast-1.myhuaweicloud.com
+      - name: agent
+        replicas: 2
+        image: swr.ap-southeast-1.myhuaweicloud.com
+    components:
+      - search
+      - descheduler
+  images:
+    karmadaRegistry: swr.ap-southeast-1.myhuaweicloud.com
+    KarmadaVersion: latest
+    kubeResgistry: k8s-gcr.m.daocloud.io
+    kubeVersion: "v1.24.2"
