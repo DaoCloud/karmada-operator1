@@ -17,9 +17,11 @@ spec:
         control-plane: karmada-operator-controller-manager
     spec:
       containers:
-      {{- if .Values.controller.kubeconfig.enable }}
       - args:
-        - --kubeconfig={{ .Values.controller.kubeconfig.localPath }}
+      {{- if .Values.controller.kubeconfig.localPath.enable }}
+        - --kubeconfig={{ .Values.controller.kubeconfig.localPath.path }}
+      {{- else }}
+        - --kubeconfig=""
       {{- end }}
         image: "{{ .Values.controller.image.repo }}:{{ .Values.controller.image.tag }}"
         name: manager

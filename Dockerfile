@@ -12,7 +12,7 @@ COPY . .
 
 # Build
 # https://golang.org/pkg/time/tzdata/
-RUN CGO_ENABLED=0 GOOS=linux GOARCH=amd64 go build -a -tags timetzdata -ldflags '-s' -o manager .
+RUN CGO_ENABLED=0 GOOS=linux GOARCH=amd64 go build -mod=vendor -a -tags timetzdata -ldflags '-s' -o manager ./cmd/controller-manager
 
 # Use distroless as minimal base image to package the manager binary
 # Refer to https://github.com/GoogleContainerTools/distroless for more details
