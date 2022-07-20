@@ -1,3 +1,19 @@
+/*
+Copyright 2022 The Karmada operator Authors.
+
+Licensed under the Apache License, Version 2.0 (the "License");
+you may not use this file except in compliance with the License.
+You may obtain a copy of the License at
+
+    http://www.apache.org/licenses/LICENSE-2.0
+
+Unless required by applicable law or agreed to in writing, software
+distributed under the License is distributed on an "AS IS" BASIS,
+WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+See the License for the specific language governing permissions and
+limitations under the License.
+*/
+
 package v1alpha1
 
 import (
@@ -53,7 +69,7 @@ type InstallMode string
 
 const (
 	// Use charts provided by karmada community.
-	ChartMode InstallMode = "Helm"
+	HelmMode InstallMode = "Helm"
 	// Use karmadactl command-line tools to install karmada.
 	KarmadactlMode InstallMode = "Karmadactl"
 )
@@ -128,7 +144,7 @@ type ControlPlaneCfg struct {
 type Module struct {
 	// karmada module name, the name must be
 	// +optional
-	// +kubebuilder:validation:Enum=karmada-scheduler;karmada-webhook;karmada-controller-manager;karmada-agent;karmada-aggregated-apiserver;etcd;kube-apiserver;kube-controller-manager
+	// +kubebuilder:validation:Enum=scheduler;webhook;controllerManager;agent;aggregatedApiServer;etcd;apiserver;kubeControllerManager
 	Name ModuleName `json:"name,omitempty"`
 
 	// Number of desired pods. This is a pointer to distinguish between explicit
@@ -203,7 +219,7 @@ type Phase string
 
 const (
 	PreflightPhase         Phase = "Preflight"
-	InstalledPhase         Phase = "Installed"
+	DeployedPhase          Phase = "Deployed"
 	WaitingPhase           Phase = "Waiting"
 	InstalledCRDPhase      Phase = "InstalledCRD"
 	ControlPlaneReadyPhase Phase = "Completed"
@@ -216,7 +232,10 @@ type KarmadaDeploymentStatus struct {
 
 	// ControlPlaneReady represent karmada cluster is health status.
 	// +required
-	ControlPlaneReady bool `json:"controlPlaneReady"`
+	ControlPlaneReady bool `json:"controlPlaneReady,omitempty"`
+
+	// after the karmada installed, restore the kubeconfig to secret.
+	SecretRef *LocalSecretReference `json:"secretRef,omitempty"`
 
 	// The generation observed by the KarmadaDeployment controller.
 	// +optional

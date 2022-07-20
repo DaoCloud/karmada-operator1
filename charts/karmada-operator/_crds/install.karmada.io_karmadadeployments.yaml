@@ -132,21 +132,18 @@ spec:
                     items:
                       properties:
                         image:
-                          enum:
-                          - karmada-scheduler
-                          - karmada-webhook
-                          - karmada-controller-manager
-                          - karmada-agent
-                          - karmada-aggregated-apiserver
-                          - etcd
-                          - kube-apiserver
-                          - kube-controller-manager
                           type: string
                         name:
                           description: karmada module name, the name must be
                           enum:
-                          - Helm
-                          - Karmadactl
+                          - scheduler
+                          - webhook
+                          - controllerManager
+                          - agent
+                          - aggregatedApiServer
+                          - etcd
+                          - apiserver
+                          - kubeControllerManager
                           type: string
                         replicas:
                           description: Number of desired pods. This is a pointer to
@@ -213,6 +210,10 @@ spec:
                       description: Status of the condition, one of True, False, Unknown.
                       type: string
                     type:
+                      enum:
+                      - FetchCharted
+                      - PodReady
+                      - ControlPlaneReady
                       type: string
                   required:
                   - lastTransitionTime
@@ -231,8 +232,18 @@ spec:
               phase:
                 description: the karmada installtion phase, must be enum type.
                 type: string
-            required:
-            - controlPlaneReady
+              secretRef:
+                description: after the karmada installed, restore the kubeconfig to
+                  secret.
+                properties:
+                  name:
+                    description: Name is the name of resource being referenced.
+                    type: string
+                  namespace:
+                    description: Namespace is the namespace for the resource being
+                      referenced.
+                    type: string
+                type: object
             type: object
         type: object
     served: true

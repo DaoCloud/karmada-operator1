@@ -1,3 +1,19 @@
+/*
+Copyright 2022 The Karmada operator Authors.
+
+Licensed under the Apache License, Version 2.0 (the "License");
+you may not use this file except in compliance with the License.
+You may obtain a copy of the License at
+
+    http://www.apache.org/licenses/LICENSE-2.0
+
+Unless required by applicable law or agreed to in writing, software
+distributed under the License is distributed on an "AS IS" BASIS,
+WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+See the License for the specific language governing permissions and
+limitations under the License.
+*/
+
 package app
 
 import (
@@ -23,7 +39,7 @@ import (
 	"github.com/daocloud/karmada-operator/cmd/controller-manager/app/config"
 	"github.com/daocloud/karmada-operator/cmd/controller-manager/app/options"
 	"github.com/daocloud/karmada-operator/pkg/controller"
-	clientset "github.com/daocloud/karmada-operator/pkg/generated/clientset/versioned"
+	"github.com/daocloud/karmada-operator/pkg/generated/clientset/versioned"
 	"github.com/daocloud/karmada-operator/pkg/generated/informers/externalversions"
 	helminstaller "github.com/daocloud/karmada-operator/pkg/installer/helm"
 	"github.com/daocloud/karmada-operator/pkg/version/verflag"
@@ -119,20 +135,21 @@ func Run(c *config.Config) error {
 }
 
 func RunManager(config *rest.Config, chartResource *helminstaller.ChartResource, stopCh <-chan struct{}) error {
-	clinetset, err := kubernetes.NewForConfig(config)
+	client, err := kubernetes.NewForConfig(config)
 	if err != nil {
 		return err
 	}
-	client, err := clientset.NewForConfig(config)
+	kmdClient, err := versioned.NewForConfig(config)
 	if err != nil {
 		return err
 	}
 
-	informerFactory := externalversions.NewSharedInformerFactory(client, 0)
+	informerFactory := externalversions.NewSharedInformerFactory(kmdClient, 0)
 	informers := informerFactory.Install().V1alpha1().KarmadaDeployments()
-	controller := controller.NewController(client, clinetset, chartResource, informers)
 
+	controller := controller.NewController(kmdClient, client, chartResource, informers)
 	informerFactory.Start(stopCh)
+
 	if !cache.WaitForCacheSync(stopCh, informers.Informer().HasSynced) {
 		klog.Errorf("Failed to wait for cache sync")
 	}
