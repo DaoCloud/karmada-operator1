@@ -8,6 +8,7 @@ import (
 	"k8s.io/apimachinery/pkg/api/equality"
 	apierrors "k8s.io/apimachinery/pkg/api/errors"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
+	"k8s.io/client-go/kubernetes"
 	"k8s.io/client-go/tools/cache"
 	"k8s.io/client-go/util/workqueue"
 	"k8s.io/klog/v2"
@@ -17,6 +18,8 @@ import (
 	clientset "github.com/daocloud/karmada-operator/pkg/generated/clientset/versioned"
 	installinformers "github.com/daocloud/karmada-operator/pkg/generated/informers/externalversions/install/v1alpha1"
 	installliter "github.com/daocloud/karmada-operator/pkg/generated/listers/install/v1alpha1"
+	"github.com/daocloud/karmada-operator/pkg/installer"
+	helminstaller "github.com/daocloud/karmada-operator/pkg/installer/helm"
 )
 
 const (
@@ -25,17 +28,20 @@ const (
 )
 
 type Controller struct {
-	runLock sync.Mutex
-	stopCh  <-chan struct{}
-
+	runLock       sync.Mutex
+	stopCh        <-chan struct{}
+	clientset     kubernetes.Interface
 	client        clientset.Interface
 	queue         workqueue.RateLimitingInterface
 	installLister installliter.KarmadaDeploymentLister
+	chartResource *helminstaller.ChartResource
 }
 
-func NewController(client clientset.Interface, karmadaDeploymentInformer installinformers.KarmadaDeploymentInformer) *Controller {
+func NewController(client clientset.Interface, clientset kubernetes.Interface, chartResource *helminstaller.ChartResource, karmadaDeploymentInformer installinformers.KarmadaDeploymentInformer) *Controller {
 	controller := &Controller{
 		client:        client,
+		clientset:     clientset,
+		chartResource: chartResource,
 		installLister: karmadaDeploymentInformer.Lister(),
 		queue: workqueue.NewRateLimitingQueue(
 			workqueue.NewItemExponentialFailureRateLimiter(2*time.Second, 5*time.Second),
@@ -172,5 +178,12 @@ func (c *Controller) reconcile(kd *installv1alpha1.KarmadaDeployment) (err error
 		}
 	}
 
-	return err
+	// TODO: calculate action
+
+	dkd := kd.DeepCopy()
+	installer, err := installer.InitInstaller(dkd, nil, c.chartResource)
+	if err != nil {
+		return err
+	}
+	return installer.Install(dkd)
 }

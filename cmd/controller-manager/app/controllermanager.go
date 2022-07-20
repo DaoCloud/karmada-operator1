@@ -8,6 +8,7 @@ import (
 	"github.com/spf13/cobra"
 	"k8s.io/apimachinery/pkg/util/uuid"
 	"k8s.io/apimachinery/pkg/util/wait"
+	"k8s.io/client-go/kubernetes"
 	"k8s.io/client-go/rest"
 	restclient "k8s.io/client-go/rest"
 	"k8s.io/client-go/tools/cache"
@@ -24,6 +25,7 @@ import (
 	"github.com/daocloud/karmada-operator/pkg/controller"
 	clientset "github.com/daocloud/karmada-operator/pkg/generated/clientset/versioned"
 	"github.com/daocloud/karmada-operator/pkg/generated/informers/externalversions"
+	helminstaller "github.com/daocloud/karmada-operator/pkg/installer/helm"
 	"github.com/daocloud/karmada-operator/pkg/version/verflag"
 )
 
@@ -72,7 +74,7 @@ func NewControllerManagerCommand() *cobra.Command {
 
 func Run(c *config.Config) error {
 	if !c.LeaderElection.LeaderElect {
-		return RunManager(c.Kubeconfig, wait.NeverStop)
+		return RunManager(c.Kubeconfig, c.ChartResource, wait.NeverStop)
 	}
 
 	hostname, err := os.Hostname()
@@ -105,8 +107,8 @@ func Run(c *config.Config) error {
 		RetryPeriod:   c.LeaderElection.RetryPeriod.Duration,
 
 		Callbacks: leaderelection.LeaderCallbacks{
-			OnStartedLeading: func(ctx context.Context) {
-				_ = RunManager(c.Kubeconfig, wait.NeverStop)
+			OnStartedLeading: func(_ context.Context) {
+				_ = RunManager(c.Kubeconfig, c.ChartResource, wait.NeverStop)
 			},
 			OnStoppedLeading: func() {
 				klog.Info("leaderelection lost")
@@ -116,7 +118,11 @@ func Run(c *config.Config) error {
 	return nil
 }
 
-func RunManager(config *rest.Config, stopCh <-chan struct{}) error {
+func RunManager(config *rest.Config, chartResource *helminstaller.ChartResource, stopCh <-chan struct{}) error {
+	clinetset, err := kubernetes.NewForConfig(config)
+	if err != nil {
+		return err
+	}
 	client, err := clientset.NewForConfig(config)
 	if err != nil {
 		return err
@@ -124,7 +130,7 @@ func RunManager(config *rest.Config, stopCh <-chan struct{}) error {
 
 	informerFactory := externalversions.NewSharedInformerFactory(client, 0)
 	informers := informerFactory.Install().V1alpha1().KarmadaDeployments()
-	controller := controller.NewController(client, informers)
+	controller := controller.NewController(client, clinetset, chartResource, informers)
 
 	informerFactory.Start(stopCh)
 	if !cache.WaitForCacheSync(stopCh, informers.Informer().HasSynced) {

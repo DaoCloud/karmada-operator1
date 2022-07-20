@@ -75,14 +75,14 @@ const (
 type ModuleName string
 
 const (
-	KarmadaSchedulerModuleName           ModuleName = "karmada-scheduler"
-	KarmadaWebhookModuleName             ModuleName = "karmada-webhook"
-	KarmadaControllerManagerModuleName   ModuleName = "karmada-controller-manager"
-	KarmadaAgentModuleName               ModuleName = "karmada-agent"
-	KarmadaAggregatedApiserverModuleName ModuleName = "karmada-aggregated-apiserver"
-	EtcdModuleName                       ModuleName = "etcd"
-	KubeApiserverModuleName              ModuleName = "kube-apiserver"
-	KubeControllerManagerModuleName      ModuleName = "kube-controller-manager"
+	SchedulerModuleName             ModuleName = "scheduler"
+	WebhookModuleName               ModuleName = "webhook"
+	ControllerManagerModuleName     ModuleName = "controllerManager"
+	AgentModuleName                 ModuleName = "agent"
+	AggregatedApiserverModuleName   ModuleName = "aggregatedApiServer"
+	EtcdModuleName                  ModuleName = "etcd"
+	KubeApiserverModuleName         ModuleName = "apiServer"
+	KubeControllerManagerModuleName ModuleName = "kubeControllerManager"
 )
 
 type ControlPlaneCfg struct {
@@ -128,7 +128,7 @@ type ControlPlaneCfg struct {
 type Module struct {
 	// karmada module name, the name must be
 	// +optional
-	// +kubebuilder:validation:Enum=Helm;Karmadactl
+	// +kubebuilder:validation:Enum=karmada-scheduler;karmada-webhook;karmada-controller-manager;karmada-agent;karmada-aggregated-apiserver;etcd;kube-apiserver;kube-controller-manager
 	Name ModuleName `json:"name,omitempty"`
 
 	// Number of desired pods. This is a pointer to distinguish between explicit
@@ -137,7 +137,6 @@ type Module struct {
 	Replicas *int32 `json:"replicas,omitempty"`
 
 	// +optional
-	// +kubebuilder:validation:Enum=karmada-scheduler;karmada-webhook;karmada-controller-manager;karmada-agent;karmada-aggregated-apiserver;etcd;kube-apiserver;kube-controller-manager
 	Image string `json:"image,omitempty"`
 }
 
