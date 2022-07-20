@@ -1,0 +1,71 @@
+{{- $name := include "karmadaoperator.name" . -}}
+---
+apiVersion: v1
+kind: ServiceAccount
+metadata:
+  name: {{ $name }}-controller-manager
+  namespace: {{ include "karmadaoperator.namespace" . }}
+---
+apiVersion: v1
+kind: Service
+metadata:
+  labels:
+  {{- include "karmadaoperator.controllerManager.labels" . | nindent 4}}
+  name: {{ $name }}-controller-manager
+  namespace: {{ include "karmadaoperator.namespace" . }}
+spec:
+  ports:
+    - name: https
+      port: 8443
+      protocol: TCP
+      targetPort: https
+  selector:
+  {{- include "karmadaoperator.controllerManager.labels" . | nindent 4}}
+---
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  labels:
+  {{- include "karmadaoperator.controllerManager.labels" . | nindent 4 }}
+  name: {{ $name }}-controller-manager
+  namespace: {{ include "karmadaoperator.namespace" . }}
+spec:
+  replicas: {{  .Values.controllerManager.replicaCount }}
+  selector:
+    matchLabels:
+      {{- include "karmadaoperator.controllerManager.labels" . | nindent 6}}
+  template:
+    metadata:
+      labels:
+      {{- include "karmadaoperator.controllerManager.labels" . | nindent 8}}
+      {{- include "karmadaoperator.controllerManager.podLabels" . | nindent 8}}
+    spec:
+      {{- include "karmadaoperator.controllerManager.imagePullSecrets" . | nindent 6 }}
+      containers:
+      - name: {{ $name }}-controller-manager
+        image: {{ template "karmadaoperator.controllerManager.image" . }}
+        args:
+        {{ if .Values.controllerManager.localKubeconfig }}
+        - --kubeconfig=""
+        {{- else }}
+        - --kubeconfig=/etc/karmadaoperator/kubeconfig/config.kubeconfig
+        {{- end }}
+        ports:
+        - containerPort: 8443
+          name: server
+          protocol: TCP
+        resources:
+        {{- toYaml .Values.controllerManager.resources | nindent 12 }}
+        volumeMounts:
+          - name: kubeconfig
+            mountPath: /etc/karmadaoperator/kubeconfig
+      serviceAccountName: {{ $name }}-controller-manager
+      {{- with .Values.controllerManager.tolerations }}
+      tolerations:
+      {{- toYaml . | nindent 8 }}
+      {{- end }}
+      volumes:
+        - name: kubeconfig
+          hostPath:
+            path: {{ .Values.controllerManager.kubeconfigPath }}
+            type: DirectoryOrCreate

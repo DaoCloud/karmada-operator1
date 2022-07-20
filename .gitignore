@@ -16,7 +16,7 @@
 
 .idea/
 .vscode/
-
+dist/
 # Docsite
 node_modules/
 _book/
