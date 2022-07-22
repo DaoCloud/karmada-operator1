@@ -29,9 +29,11 @@ GOIMPORTS     = $(GOBIN)/goimports
 REGISTRY_SERVER_ADDRESS?="release.daocloud.io"
 REGISTRY_REPO?="$(REGISTRY_SERVER_ADDRESS)/kairship"
 HELM_REPO?="https://$(REGISTRY_SERVER_ADDRESS)/chartrepo/karmada-operator"
-REGISTRY_USER_NAME?="xingchen.li"
-REGISTRY_PASSWORD?="Asd992941460a."
-YOUR_KUBE_CONF?="/Users/lixingchen/company/test/config"
+#If you have not logged in to the registry, you need to fill in the account and password
+REGISTRY_USER_NAME?=""
+REGISTRY_PASSWORD?=""
+#The kubeconfig path of the cluster where karmada-operator deploy
+YOUR_KUBE_CONF?="/root/.kube/config"
 
 # Parameter
 KARMADA_OPERATOR_NAMESPACE="karmada-operator-system"
