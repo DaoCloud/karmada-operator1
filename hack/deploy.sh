@@ -27,8 +27,14 @@ DEPLOY_ENV=${7:-}   # DEV/PROD
 LOCAL_REPO_ALIAS=karmada-operator-release
 LOCAL_RELEASE_NAME=karmada-operator
 
-# add repo locally
-helm repo add ${LOCAL_REPO_ALIAS} ${HELM_REPO}
+# add repo locally or update repo
+karmada_operator_repo=`helm repo list |grep ${LOCAL_REPO_ALIAS}|awk 'FNR==1{print $1}'`
+if [[ $karmada_operator_repo == "${LOCAL_REPO_ALIAS}" ]];then
+    helm repo update ${LOCAL_REPO_ALIAS}
+else
+    helm repo add ${LOCAL_REPO_ALIAS} ${HELM_REPO}
+fi
+
 
 if [ "${DEPLOY_ENV}" == "PROD" ];then
     values="-f charts/karmada-operator/values.yaml"

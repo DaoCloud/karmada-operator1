@@ -64,6 +64,6 @@ controllerManager:
     - key: node-role.kubernetes.io/master
       operator: Exists
   ## @param controllerManager.kubeconfigPath
-  kubeconfigPath: /Users/lixingchen/company/test
+  kubeconfigPath: /root/.kube
   ## @param controllerManager.localKubeconfig
   localKubeconfig: true

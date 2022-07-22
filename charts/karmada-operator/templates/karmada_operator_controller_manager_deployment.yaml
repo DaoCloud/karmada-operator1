@@ -44,11 +44,9 @@ spec:
       containers:
       - name: {{ $name }}-controller-manager
         image: {{ template "karmadaoperator.controllerManager.image" . }}
+        {{ if not .Values.controllerManager.localKubeconfig }}
         args:
-        {{ if .Values.controllerManager.localKubeconfig }}
-        - --kubeconfig=""
-        {{- else }}
-        - --kubeconfig=/etc/karmadaoperator/kubeconfig/config.kubeconfig
+        - --kubeconfig=/etc/karmadaoperator/kubeconfig/config
         {{- end }}
         ports:
         - containerPort: 8443
