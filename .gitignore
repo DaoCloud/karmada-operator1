@@ -17,7 +17,7 @@
 .idea/
 .vscode/
 dist/
-# Docsite
-node_modules/
-_book/
+/charts/karmada-operator/charts/*.tgz
+
+# OSX trash
 .DS_Store

@@ -26,8 +26,8 @@ endif
 GOIMPORTS     = $(GOBIN)/goimports
 
 # Images management
-REGISTRY_SERVER_ADDRESS?="release.daocloud.io"
-REGISTRY_REPO?="$(REGISTRY_SERVER_ADDRESS)/kairship"
+REGISTRY_SERVER_ADDRESS?=release.daocloud.io
+REGISTRY_REPO?=$(REGISTRY_SERVER_ADDRESS)/karmada
 HELM_REPO?="https://$(REGISTRY_SERVER_ADDRESS)/chartrepo/karmada-operator"
 #If you have not logged in to the registry, you need to fill in the account and password
 REGISTRY_USER_NAME?=""
@@ -64,32 +64,32 @@ KARMADA_OPERATOR_IMAGE_VERSION := $(shell echo $(KARMADA_OPERATOR_VERSION) | sed
 KARMADA_OPERATOR_CHART_VERSION := $(shell echo ${KARMADA_OPERATOR_VERSION} |sed  's/^v//g' )
 
 .PHONY: karmada-operator-imgs
-karmada-operator-imgs: karmada-operator-controller-manager
+karmada-operator-imgs: karmada-operator
 
 all: karmada-operator-imgs
 
-.PHONY: karmada-operator-controller-manager
-karmada-operator-controller-manager: $(SOURCES)
-	echo "Building karmada-operator-controller-manager for arch = $(BUILD_ARCH)"
+.PHONY: karmada-operator
+karmada-operator: $(SOURCES)
+	echo "Building karmada-operator for arch = $(BUILD_ARCH)"
 	export DOCKER_CLI_EXPERIMENTAL=enabled ;\
-	! ( docker buildx ls | grep karmada-operator-controller-manager-builder ) && docker buildx create --use --platform=$(BUILD_ARCH) --name karmada-operator-controller-manager-builder ;\
+	! ( docker buildx ls | grep karmada-operator-builder ) && docker buildx create --use --platform=$(BUILD_ARCH) --name karmada-operator-builder ;\
 	docker buildx build \
-		  	--build-arg karmada-operator_version=$(KARMADA_OPERATOR_VERSION) \
-			--build-arg UBUNTU_MIRROR=$(UBUNTU_MIRROR) \
-			--builder karmada-operator-controller-manager-builder \
-			--platform $(BUILD_ARCH) \
-			--tag $(REGISTRY_REPO)/karmada-operator-controller-manager:$(KARMADA_OPERATOR_IMAGE_VERSION)  \
-			--tag $(REGISTRY_REPO)/karmada-operator-controller-manager:latest  \
-			-f ./Dockerfile \
-			--load \
-			.
+		--build-arg karmada-operator_version=$(KARMADA_OPERATOR_VERSION) \
+		--build-arg UBUNTU_MIRROR=$(UBUNTU_MIRROR) \
+		--builder karmada-operator-builder \
+		--platform $(BUILD_ARCH) \
+		--tag $(REGISTRY_REPO)/karmada-operator:$(KARMADA_OPERATOR_IMAGE_VERSION)  \
+		--tag $(REGISTRY_REPO)/karmada-operator:latest  \
+		-f ./Dockerfile \
+		--load \
+		.
 
 .PHONY: upload-image
 upload-image: karmada-operator-imgs
 	@echo "push images to $(REGISTRY_REPO)"
 	docker login -u ${REGISTRY_USER_NAME} -p ${REGISTRY_PASSWORD} ${REGISTRY_SERVER_ADDRESS}
-	@docker push $(REGISTRY_REPO)/karmada-operator-controller-manager:$(KARMADA_OPERATOR_IMAGE_VERSION)
-	@docker push $(REGISTRY_REPO)/karmada-operator-controller-manager:latest
+	@docker push $(REGISTRY_REPO)/karmada-operator:$(KARMADA_OPERATOR_IMAGE_VERSION)
+	@docker push $(REGISTRY_REPO)/karmada-operator:latest
 
 .PHONY: update-code-gen
 update-code-gen:
@@ -99,7 +99,6 @@ update-code-gen:
 update-crds:
 	./hack/update-crds.sh
 
-
 .PHONY: push-chart
 push-chart:
 	#helm package -u ./charts/ -d ./dist/
@@ -107,16 +106,12 @@ push-chart:
 	helm package ./charts/karmada-operator -d dist --version $(KARMADA_OPERATOR_CHART_VERSION)
 	helm cm-push ./dist/karmada-operator-$(KARMADA_OPERATOR_CHART_VERSION).tgz  karmada-operator-release -a $(KARMADA_OPERATOR_CHART_VERSION) -v $(KARMADA_OPERATOR_CHART_VERSION) -u $(REGISTRY_USER_NAME)  -p $(REGISTRY_PASSWORD)
 
-
-
-
 .PHONY: clean-chart
 clean-chart:
 	rm -rf  dist
 
 .PHONY: release
 release: karmada-operator-imgs upload-image push-chart
-
 
 ## Deploy current version of helm package to target cluster of $(YOUR_KUBE_CONF) [not defined]
 .PHONY: deploy

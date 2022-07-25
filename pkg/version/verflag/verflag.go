@@ -72,7 +72,7 @@ func Version(name string, value versionValue, usage string) *versionValue {
 const versionFlagName = "version"
 
 var (
-	programName = "Clusterpedia"
+	programName = "karmada-operator"
 	versionFlag = Version(versionFlagName, VersionFalse, "Print version information and quit")
 )
 
