@@ -1,0 +1,252 @@
+---
+apiVersion: apiextensions.k8s.io/v1
+kind: CustomResourceDefinition
+metadata:
+  annotations:
+    controller-gen.kubebuilder.io/version: v0.9.2
+  creationTimestamp: null
+  name: karmadadeployments.install.karmada.io
+spec:
+  group: install.karmada.io
+  names:
+    kind: KarmadaDeployment
+    listKind: KarmadaDeploymentList
+    plural: karmadadeployments
+    shortNames:
+    - kmd
+    - kmds
+    singular: karmadadeployment
+  scope: Cluster
+  versions:
+  - additionalPrinterColumns:
+    - jsonPath: .spec.mode
+      name: Mode
+      type: string
+    - jsonPath: .status.phase
+      name: Phase
+      type: string
+    - jsonPath: .status.conditions[?(@.type == 'ControlPlaneReady')].reason
+      name: Status
+      type: string
+    - description: CreationTimestamp is a timestamp representing the server time when
+        this object was created. It is not guaranteed to be set in happens-before
+        order across separate operations. Clients may not set this value. It is represented
+        in RFC3339 form and is in UTC.
+      jsonPath: .metadata.creationTimestamp
+      name: Age
+      type: date
+    name: v1alpha1
+    schema:
+      openAPIV3Schema:
+        description: KarmadaDeployment enables declarative installation of karmada.
+        properties:
+          apiVersion:
+            description: 'APIVersion defines the versioned schema of this representation
+              of an object. Servers should convert recognized schemas to the latest
+              internal value, and may reject unrecognized values. More info: https://git.k8s.io/community/contributors/devel/sig-architecture/api-conventions.md#resources'
+            type: string
+          kind:
+            description: 'Kind is a string value representing the REST resource this
+              object represents. Servers may infer this from the endpoint the client
+              submits requests to. Cannot be updated. In CamelCase. More info: https://git.k8s.io/community/contributors/devel/sig-architecture/api-conventions.md#types-kinds'
+            type: string
+          metadata:
+            type: object
+          spec:
+            description: Spec defines the desired behavior of the KarmadaDeployment.
+            properties:
+              controlPlane:
+                description: All of config of karmada control plane installtion.
+                properties:
+                  chartExtraValues:
+                    description: support extar chart values to a configmap, the chart
+                      values format exactly reference to origin chart value.yaml.
+                    properties:
+                      name:
+                        description: Name is the name of resource being referenced.
+                        type: string
+                      namespace:
+                        description: Namespace is the namespace for the resource being
+                          referenced.
+                        type: string
+                    type: object
+                  components:
+                    description: optional karmada components, no components be installed
+                      by defualt. component value must be enum.
+                    items:
+                      description: karmada components, these are optional components
+                        for karmada and they does not affect the normal feature of
+                        karmada.
+                      type: string
+                    type: array
+                  endPointCfg:
+                    description: the install cluster access credentials, must be support.
+                      there are two way to connect cluster, one is by kubeconfig file
+                      path. two is restore the credentials in the secret.
+                    properties:
+                      controlPlaneEndpoint:
+                        description: The API endpoint of the member cluster. This
+                          can be a hostname, hostname:port, IP or IP:port.
+                        type: string
+                      kubeconfig:
+                        type: string
+                      secretRef:
+                        description: 'SecretRef represents the secret contains mandatory
+                          credentials to access the member cluster. The secret should
+                          hold credentials as follows: - secret.data.token - secret.data.caBundle'
+                        properties:
+                          name:
+                            description: Name is the name of resource being referenced.
+                            type: string
+                          namespace:
+                            description: Namespace is the namespace for the resource
+                              being referenced.
+                            type: string
+                        type: object
+                    type: object
+                  etcd:
+                    description: 'For karmada, two types etcd can be used: Internal
+                      etcd: must be installed by operator. storageMode: epmtydir,
+                      hostPath, pvc External etcd: not need be installed by operator.'
+                    properties:
+                      size:
+                        description: If specified StorageMode is PVC, Size must be
+                          set.
+                        type: string
+                      storageClass:
+                        description: If specified StorageMode is PVC, StorageClass
+                          must be set.
+                        type: string
+                      storageMode:
+                        description: 'TODO: support external etcd. StorageMode etcd
+                          data storage mode(emptyDir,hostPath, PVC), default "emptyDir"'
+                        type: string
+                    type: object
+                  installCRD:
+                    description: default is true, if not installed karmada crd resources
+                      in cluster, please set it to false.
+                    type: boolean
+                  modules:
+                    description: set karmada modules images and replicas separately.
+                      the module name must be enum.
+                    items:
+                      properties:
+                        image:
+                          type: string
+                        name:
+                          description: karmada module name, the name must be
+                          enum:
+                          - scheduler
+                          - webhook
+                          - controllerManager
+                          - agent
+                          - aggregatedApiServer
+                          - etcd
+                          - apiserver
+                          - kubeControllerManager
+                          type: string
+                        replicas:
+                          description: Number of desired pods. This is a pointer to
+                            distinguish between explicit zero and not specified. Defaults
+                            to 1.
+                          format: int32
+                          type: integer
+                      type: object
+                    type: array
+                  namespace:
+                    description: specified namespace to karmada, if not specified
+                      defualt "karmada-system".
+                    type: string
+                type: object
+              images:
+                description: set global images registry and version, kubenetes original
+                  images and karmada images can be set up separately. If there is
+                  nil, will use the default images to install.
+                properties:
+                  karmadaRegistry:
+                    description: karmada regisrty, default is "swr.ap-southeast-1.myhuaweicloud.com".
+                      all of karmada images is effect by the param.
+                    type: string
+                  karmadaVersion:
+                    description: karmada images version, default is "latest". all
+                      of karmada images is effect by the param.
+                    type: string
+                  kubeResgistry:
+                    description: the registry of kube-apiserver and kube-controller-manager,
+                      default is "k8s.gcr.io".
+                    type: string
+                  kubeVersion:
+                    description: the iamge version of kube-apiserver and kube-controller-manager.
+                    type: string
+                type: object
+              mode:
+                description: mode of karmada installtion, can be "Helm" or "Karmadactl",
+                  Default is Helm.
+                enum:
+                - Helm
+                - Karmadactl
+                type: string
+            type: object
+          status:
+            description: Most recently observed status of the KarmadaDeployment.
+            properties:
+              conditions:
+                description: Represents the latest available observations of a karmadaDeployment's
+                  current state.
+                items:
+                  properties:
+                    lastTransitionTime:
+                      format: date-time
+                      type: string
+                    message:
+                      description: Message is a human readable description of the
+                        details of the last transition, complementing reason.
+                      type: string
+                    reason:
+                      description: Reason is a brief machine readable explanation
+                        for the condition's last transition.
+                      type: string
+                    status:
+                      description: Status of the condition, one of True, False, Unknown.
+                      type: string
+                    type:
+                      enum:
+                      - FetchCharted
+                      - PodReady
+                      - ControlPlaneReady
+                      type: string
+                  required:
+                  - lastTransitionTime
+                  - status
+                  - type
+                  type: object
+                type: array
+              controlPlaneReady:
+                description: ControlPlaneReady represent karmada cluster is health
+                  status.
+                type: boolean
+              observedGeneration:
+                description: The generation observed by the KarmadaDeployment controller.
+                format: int64
+                type: integer
+              phase:
+                description: the karmada installtion phase, must be enum type.
+                type: string
+              secretRef:
+                description: after the karmada installed, restore the kubeconfig to
+                  secret.
+                properties:
+                  name:
+                    description: Name is the name of resource being referenced.
+                    type: string
+                  namespace:
+                    description: Namespace is the namespace for the resource being
+                      referenced.
+                    type: string
+                type: object
+            type: object
+        type: object
+    served: true
+    storage: true
+    subresources:
+      status: {}

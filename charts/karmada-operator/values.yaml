@@ -1,0 +1,69 @@
+## Default values for charts.
+## This is a YAML-formatted file.
+## Declare variables to be passed into your templates.
+
+## @param global karmada global config
+global:
+  ## @param global.imageRegistry Global Docker image registry
+  imageRegistry: ""
+  ## E.g.
+  ## imagePullSecrets:
+  ##   - myRegistryKeySecretName
+  imagePullSecrets: []
+
+## controller manager config
+controllerManager:
+  ## @param controllerManager.labels
+  labels:
+    app: karmada-operator-controller-manager
+  ## @param controllerManager.replicaCount target replicas
+  replicaCount: 2
+  ## @param controllerManager.podAnnotations
+  podAnnotations: {}
+  ## @param controllerManager.podLabels
+  podLabels: {}
+  ## @param image.registry karmada-operator image registry
+  ## @param image.repository karmada-operator  image repository
+  ## @param image.tag karmada-operator  image tag (immutable tags are recommended)
+  ## @param image.pullPolicy karmada-operator  image pull policy
+  ## @param image.pullSecrets Specify docker-registry secret names as an array
+  ##
+  image:
+    registry: release.daocloud.io
+    repository: kairship/karmada-operator-controller-manager
+    tag: "v0.0.1"
+    ## Specify a imagePullPolicy
+    ## Defaults to 'Always' if image tag is 'latest', else set to 'IfNotPresent'
+    ## ref: https://kubernetes.io/docs/user-guide/images/#pre-pulling-images
+    ##
+    pullPolicy: IfNotPresent
+    ## Optionally specify an array of imagePullSecrets.
+    ## Secrets must be manually created in the namespace.
+    ## Example:
+    ## pullSecrets:
+    ##   - myRegistryKeySecretName
+    ##
+    pullSecrets: []
+  ## @param controllerManager.resources
+  resources:
+    {}
+    # If you do want to specify resources, uncomment the following
+    # lines, adjust them as necessary, and remove the curly braces after 'resources:'.
+    # limits:
+    #   cpu: 100m
+    #   memory: 128Mi
+    # requests:
+    #   cpu: 100m
+  #   memory: 128Mi
+  ## @param controllerManager.nodeSelector
+  nodeSelector: {}
+  ## @param controllerManager.affinity
+  affinity: {}
+  ## @param controllerManager.tolerations
+  tolerations:
+    - key: node-role.kubernetes.io/master
+      operator: Exists
+  ## @param controllerManager.kubeconfigPath
+  kubeconfigPath: /root/.kube
+  ## @param controllerManager.localKubeconfig
+  localKubeconfig: true
