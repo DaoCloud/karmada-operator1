@@ -1,3 +1,19 @@
+/*
+Copyright 2022 The Karmada operator Authors.
+
+Licensed under the Apache License, Version 2.0 (the "License");
+you may not use this file except in compliance with the License.
+You may obtain a copy of the License at
+
+    http://www.apache.org/licenses/LICENSE-2.0
+
+Unless required by applicable law or agreed to in writing, software
+distributed under the License is distributed on an "AS IS" BASIS,
+WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+See the License for the specific language governing permissions and
+limitations under the License.
+*/
+
 package controller
 
 import (
@@ -15,10 +31,10 @@ import (
 	"sigs.k8s.io/controller-runtime/pkg/controller/controllerutil"
 
 	installv1alpha1 "github.com/daocloud/karmada-operator/pkg/apis/install/v1alpha1"
-	clientset "github.com/daocloud/karmada-operator/pkg/generated/clientset/versioned"
+	"github.com/daocloud/karmada-operator/pkg/generated/clientset/versioned"
 	installinformers "github.com/daocloud/karmada-operator/pkg/generated/informers/externalversions/install/v1alpha1"
 	installliter "github.com/daocloud/karmada-operator/pkg/generated/listers/install/v1alpha1"
-	"github.com/daocloud/karmada-operator/pkg/installer"
+	factory "github.com/daocloud/karmada-operator/pkg/installer"
 	helminstaller "github.com/daocloud/karmada-operator/pkg/installer/helm"
 )
 
@@ -31,28 +47,31 @@ type Controller struct {
 	runLock       sync.Mutex
 	stopCh        <-chan struct{}
 	clientset     kubernetes.Interface
-	client        clientset.Interface
+	kmdClient     versioned.Interface
 	queue         workqueue.RateLimitingInterface
 	installLister installliter.KarmadaDeploymentLister
-	chartResource *helminstaller.ChartResource
+	factory       *factory.InstallerFactory
 }
 
-func NewController(client clientset.Interface, clientset kubernetes.Interface, chartResource *helminstaller.ChartResource, karmadaDeploymentInformer installinformers.KarmadaDeploymentInformer) *Controller {
+func NewController(kmdClient versioned.Interface,
+	client kubernetes.Interface,
+	chartResource *helminstaller.ChartResource,
+	karmadaDeploymentInformer installinformers.KarmadaDeploymentInformer) *Controller {
+
 	controller := &Controller{
-		client:        client,
-		clientset:     clientset,
-		chartResource: chartResource,
+		kmdClient:     kmdClient,
+		clientset:     client,
 		installLister: karmadaDeploymentInformer.Lister(),
 		queue: workqueue.NewRateLimitingQueue(
 			workqueue.NewItemExponentialFailureRateLimiter(2*time.Second, 5*time.Second),
 		),
+
+		factory: factory.NewInstallerFactory(kmdClient, client, chartResource),
 	}
 
 	karmadaDeploymentInformer.Informer().AddEventHandler(
 		cache.ResourceEventHandlerFuncs{
-			AddFunc:    controller.enqueue,
-			DeleteFunc: controller.enqueue,
-
+			AddFunc: controller.enqueue,
 			UpdateFunc: func(older, newer interface{}) {
 				oldObj := older.(*installv1alpha1.KarmadaDeployment)
 				newObj := newer.(*installv1alpha1.KarmadaDeployment)
@@ -61,8 +80,11 @@ func NewController(client clientset.Interface, clientset kubernetes.Interface, c
 				}
 				controller.enqueue(newer)
 			},
+
+			DeleteFunc: controller.enqueue,
 		},
 	)
+
 	return controller
 }
 
@@ -134,6 +156,7 @@ func (c *Controller) processNext() (continued bool) {
 	}
 	if err := c.reconcile(kd); err != nil {
 		klog.ErrorS(err, "Failed to reconcile karmadaDeployment", "cluster", name, "num requeues", c.queue.NumRequeues(key))
+
 		if c.queue.NumRequeues(key) < maxClusterSynchroRetry {
 			c.queue.AddRateLimited(key)
 			return
@@ -145,45 +168,31 @@ func (c *Controller) processNext() (continued bool) {
 	return
 }
 
-func (c *Controller) reconcile(kd *installv1alpha1.KarmadaDeployment) (err error) {
-	if !kd.DeletionTimestamp.IsZero() {
-		klog.InfoS("remove karmadaDeployment", "karmadaDeployment", kd.Name)
+func (c *Controller) reconcile(kmd *installv1alpha1.KarmadaDeployment) (err error) {
+	if !kmd.DeletionTimestamp.IsZero() {
+		klog.InfoS("remove karmadaDeployment", "karmadaDeployment", kmd.Name)
 
-		// TODO: delete event
-
-		if !controllerutil.ContainsFinalizer(kd, ControllerFinalizer) {
-			return nil
+		if err := c.factory.SyncWithAction(kmd, factory.UninstallAction); err != nil {
+			return err
 		}
 
-		if removed := controllerutil.RemoveFinalizer(kd, ControllerFinalizer); removed {
-
-			_, err := c.client.InstallV1alpha1().KarmadaDeployments().
-				Update(context.TODO(), kd, metav1.UpdateOptions{})
-			if err != nil {
+		if controllerutil.ContainsFinalizer(kmd.DeepCopy(), ControllerFinalizer) {
+			_ = controllerutil.RemoveFinalizer(kmd, ControllerFinalizer)
+			if _, err := c.kmdClient.InstallV1alpha1().KarmadaDeployments().Update(context.TODO(), kmd, metav1.UpdateOptions{}); err != nil {
 				return err
 			}
 		}
+
 		return nil
 	}
 
 	// ensure finalizer
-	if !controllerutil.ContainsFinalizer(kd, ControllerFinalizer) {
-		if updated := controllerutil.AddFinalizer(kd, ControllerFinalizer); updated {
-
-			_, err := c.client.InstallV1alpha1().KarmadaDeployments().
-				Update(context.TODO(), kd, metav1.UpdateOptions{})
-			if err != nil {
-				return err
-			}
+	if !controllerutil.ContainsFinalizer(kmd, ControllerFinalizer) {
+		_ = controllerutil.AddFinalizer(kmd, ControllerFinalizer)
+		if kmd, err = c.kmdClient.InstallV1alpha1().KarmadaDeployments().Update(context.TODO(), kmd, metav1.UpdateOptions{}); err != nil {
+			return err
 		}
 	}
 
-	// TODO: calculate action
-
-	dkd := kd.DeepCopy()
-	installer, err := installer.InitInstaller(dkd, nil, c.chartResource)
-	if err != nil {
-		return err
-	}
-	return installer.Install(dkd)
+	return c.factory.Sync(kmd)
 }
