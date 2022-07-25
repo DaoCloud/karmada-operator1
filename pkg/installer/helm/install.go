@@ -45,16 +45,10 @@ import (
 )
 
 const (
-	// TODO:
-	chartBasePath    = "/var/run/karmada-operator"
+	chartBasePath    = "/var/run"
 	KarmadaNamespace = "karmada-system"
-	DefaulTimeout    = time.Second * 120
+	DefaulTimeout    = time.Minute * 3
 	WaitPodTimeout   = time.Second * 60
-)
-
-var (
-	Kubernates = []string{"apiServer", "kubeControllerManager"}
-	Karmada    = []string{"schedulerEstimator", "descheduler", "search", "scheduler", "webhook", "controllerManager", "agent", "aggregatedApiServer"}
 )
 
 type installWorkflow struct {
@@ -175,89 +169,6 @@ func (c ChartResource) CleanRepoURL() string {
 	return cleanURL.String()
 }
 
-func ComposeValues(kd *installv1alpha1.KarmadaDeployment) ([]byte, error) {
-	values := make(helm.Values)
-	controlPlane := kd.Spec.ControlPlane
-
-	// Parse etcd values
-	if controlPlane.ETCD != nil {
-		var (
-			etcdStorageModeKey  = "etcd.internal.storageType"
-			etcdStorageSize     = "etcd.internal.pvc.size"
-			etcdStorageClassKey = "etcd.internal.pvc.storageClass"
-		)
-		if len(controlPlane.ETCD.StorageMode) > 0 {
-			values[etcdStorageModeKey] = controlPlane.ETCD.StorageMode
-		}
-		if len(controlPlane.ETCD.StorageClass) > 0 {
-			values[etcdStorageClassKey] = controlPlane.ETCD.StorageClass
-		}
-		if len(controlPlane.ETCD.Size) > 0 {
-			values[etcdStorageSize] = controlPlane.ETCD.Size
-		}
-	}
-
-	// Parse module image and replicas values.
-	for _, module := range controlPlane.Modules {
-		name := string(module.Name)
-		var (
-			registry, repository, tag string
-
-			registryKey      = fmt.Sprintf("%s.image.registry", name)
-			repositoryKey    = fmt.Sprintf("%s.image.repository", name)
-			tagKey           = fmt.Sprintf("%s.image.tag", name)
-			replicasCountKey = fmt.Sprintf("%s.replicaCount", name)
-		)
-
-		if module.Replicas != nil {
-			values[replicasCountKey] = module.Replicas
-		}
-		if len(module.Image) > 0 {
-			image := module.Image
-			i := strings.LastIndex(image, ":")
-			if i > 0 {
-				tag = image[i+1:]
-				values[tagKey] = tag
-				image = image[:i]
-			}
-			if strings.Contains(image, "/") {
-				registry, repository, _ = strings.Cut(image, "/")
-			} else {
-				repository = image
-			}
-			values[registryKey] = registry
-			values[repositoryKey] = repository
-		}
-	}
-
-	// Parse global images.
-	if kd.Spec.Images != nil {
-		for _, k := range Karmada {
-			if len(kd.Spec.Images.KarmadaRegistry) > 0 {
-				values[fmt.Sprintf("%s.image.registry", k)] = kd.Spec.Images.KarmadaRegistry
-			}
-			if len(kd.Spec.Images.KarmadaVersion) > 0 {
-				values[fmt.Sprintf("%s.image.tag", k)] = kd.Spec.Images.KarmadaVersion
-			}
-		}
-		for _, k := range Kubernates {
-			if len(kd.Spec.Images.KubeResgistry) > 0 {
-				values[fmt.Sprintf("%s.image.registry", k)] = kd.Spec.Images.KubeResgistry
-			}
-			if len(kd.Spec.Images.KubeVersion) > 0 {
-				values[fmt.Sprintf("%s.image.tag", k)] = kd.Spec.Images.KubeVersion
-			}
-		}
-	}
-
-	if len(controlPlane.Components) > 0 {
-		values["components"] = controlPlane.Components
-	}
-
-	// TODO: load chart config of configmap
-	return values.YAML()
-}
-
 func (install *installWorkflow) Deploy(kmd *installv1alpha1.KarmadaDeployment) error {
 	if len(kmd.Spec.ControlPlane.Namespace) == 0 {
 		kmd.Spec.ControlPlane.Namespace = KarmadaNamespace
@@ -276,16 +187,18 @@ func (install *installWorkflow) Deploy(kmd *installv1alpha1.KarmadaDeployment) e
 		}
 	}
 	releaseName := fmt.Sprintf("karmada-%s", kmd.Name)
-	install.release, err = install.helmClient.UpgradeFromPath(install.chartPath, releaseName, install.values, helm.UpgradeOptions{
-		Namespace:         ns.Name,
-		Timeout:           DefaulTimeout,
-		Install:           true,
-		Force:             true,
-		SkipCRDs:          false,
-		Wait:              false,
-		Atomic:            true,
-		DisableValidation: false,
-	})
+	install.release, err = install.helmClient.UpgradeFromPath(install.chartPath,
+		releaseName, install.values, helm.UpgradeOptions{
+
+			Namespace:         ns.Name,
+			Timeout:           DefaulTimeout,
+			Install:           true,
+			Force:             true,
+			SkipCRDs:          false,
+			Wait:              false,
+			Atomic:            true,
+			DisableValidation: false,
+		})
 	if err != nil {
 		return err
 	}
@@ -425,6 +338,9 @@ func BuildClientsetFormKubeconfig(kubeconfig []byte) (*clientset.Clientset, erro
 func (install *installWorkflow) GetRelease(kmd *installv1alpha1.KarmadaDeployment) (*helm.Release, error) {
 	if install.release == nil {
 		release, err := GetRelease(install.helmClient, kmd)
+		if release == nil {
+			return nil, fmt.Errorf("failed to find the release: %s", fmt.Sprintf("karmada-%s", kmd.Name))
+		}
 		if err != nil {
 			return nil, err
 		}

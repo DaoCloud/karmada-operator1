@@ -66,7 +66,7 @@ func NewHelmInstaller(kd *installv1alpha1.KarmadaDeployment, kmdClient versioned
 
 	return &HelmInstaller{
 		installWorkflow:   NewInstallWorkflow(config.APIPath, helmClient, kmdClient, destClient, client, chartResource),
-		uninstallWorkflow: NewUninstallWorkflow(destClient, helmClient),
+		uninstallWorkflow: NewUninstallWorkflow(client, destClient, helmClient),
 	}, nil
 }
 
