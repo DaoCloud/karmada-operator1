@@ -21,14 +21,16 @@ import (
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 )
 
+// TOOD: kubebuilder:printcolumn:name="Status",type=string,JSONPath=".status.conditions[?(@.type == 'ControlPlaneReady')].reason",description=""
+
 // +genclient
 // +genclient:nonNamespaced
 // +kubebuilder:resource:scope="Cluster",path=karmadadeployments,shortName=kmd;kmds
-//+kubebuilder:subresource:status
+// +kubebuilder:subresource:status
 // +k8s:deepcopy-gen:interfaces=k8s.io/apimachinery/pkg/runtime.Object
 // +kubebuilder:printcolumn:name="Mode",type=string,JSONPath=".spec.mode",description=""
 // +kubebuilder:printcolumn:name="Phase",type=string,JSONPath=".status.phase",description=""
-// +kubebuilder:printcolumn:name="Status",type=string,JSONPath=".status.conditions[?(@.type == 'ControlPlaneReady')].reason",description=""
+// +kubebuilder:printcolumn:name="Status",type=string,JSONPath=".status.controlPlaneReady",description=""
 // +kubebuilder:printcolumn:name="Age",type="date",JSONPath=".metadata.creationTimestamp",description="CreationTimestamp is a timestamp representing the server time when this object was created. It is not guaranteed to be set in happens-before order across separate operations. Clients may not set this value. It is represented in RFC3339 form and is in UTC."
 // KarmadaDeployment enables declarative installation of karmada.
 type KarmadaDeployment struct {
@@ -99,6 +101,9 @@ const (
 	EtcdModuleName                  ModuleName = "etcd"
 	KubeApiserverModuleName         ModuleName = "apiServer"
 	KubeControllerManagerModuleName ModuleName = "kubeControllerManager"
+	SchedulerEstimatorModuleName    ModuleName = "schedulerEstimator"
+	DeschedulerModuleName           ModuleName = "descheduler"
+	SearchModuleName                ModuleName = "search"
 )
 
 type ControlPlaneCfg struct {
@@ -144,7 +149,7 @@ type ControlPlaneCfg struct {
 type Module struct {
 	// karmada module name, the name must be
 	// +optional
-	// +kubebuilder:validation:Enum=scheduler;webhook;controllerManager;agent;aggregatedApiServer;etcd;apiserver;kubeControllerManager
+	// +kubebuilder:validation:Enum=scheduler;webhook;controllerManager;agent;aggregatedApiServer;etcd;apiServer;kubeControllerManager;schedulerEstimator;descheduler;search
 	Name ModuleName `json:"name,omitempty"`
 
 	// Number of desired pods. This is a pointer to distinguish between explicit

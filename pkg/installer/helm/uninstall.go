@@ -23,7 +23,7 @@ import (
 	"time"
 
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
-	"k8s.io/client-go/kubernetes"
+	clientset "k8s.io/client-go/kubernetes"
 
 	installv1alpha1 "github.com/daocloud/karmada-operator/pkg/apis/install/v1alpha1"
 	"github.com/daocloud/karmada-operator/pkg/helm"
@@ -38,12 +38,14 @@ var (
 )
 
 type uninstallWorkflow struct {
-	destClient kubernetes.Interface
+	client     clientset.Interface
+	destClient clientset.Interface
 	helmClient helm.Client
 }
 
-func NewUninstallWorkflow(destClient kubernetes.Interface, helmClient helm.Client) *uninstallWorkflow {
+func NewUninstallWorkflow(client clientset.Interface, destClient clientset.Interface, helmClient helm.Client) *uninstallWorkflow {
 	return &uninstallWorkflow{
+		client:     client,
 		destClient: destClient,
 		helmClient: helmClient,
 	}
@@ -53,6 +55,11 @@ func (un *uninstallWorkflow) Uninstall(kmd *installv1alpha1.KarmadaDeployment) e
 	release, err := GetRelease(un.helmClient, kmd)
 	if err != nil {
 		return err
+	}
+
+	// if the release is deleted by user. it will skip the workflow.
+	if release == nil {
+		return nil
 	}
 
 	err = un.helmClient.Uninstall(release.Name, helm.UninstallOptions{
@@ -88,5 +95,10 @@ func (un *uninstallWorkflow) cleanup(kd *installv1alpha1.KarmadaDeployment, rele
 	_ = un.destClient.CoreV1().Namespaces().Delete(
 		context.TODO(), namespace, metav1.DeleteOptions{})
 
+	// delete the secret of karmada instance kubeconfig on the cluster.
+	secretRef := kd.Status.SecretRef
+	if secretRef != nil {
+		un.client.CoreV1().Secrets(secretRef.Namespace).Delete(context.TODO(), secretRef.Name, metav1.DeleteOptions{})
+	}
 	return nil
 }

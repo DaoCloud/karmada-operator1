@@ -25,7 +25,7 @@ spec:
     - jsonPath: .status.phase
       name: Phase
       type: string
-    - jsonPath: .status.conditions[?(@.type == 'ControlPlaneReady')].reason
+    - jsonPath: .status.controlPlaneReady
       name: Status
       type: string
     - description: CreationTimestamp is a timestamp representing the server time when
@@ -142,8 +142,11 @@ spec:
                           - agent
                           - aggregatedApiServer
                           - etcd
-                          - apiserver
+                          - apiServer
                           - kubeControllerManager
+                          - schedulerEstimator
+                          - descheduler
+                          - search
                           type: string
                         replicas:
                           description: Number of desired pods. This is a pointer to

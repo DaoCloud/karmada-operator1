@@ -13,9 +13,8 @@ spec:
     etcd:
       storageMode: hostPath
     modules:
-      - name: aggregatedApiServer
+      - name: scheduler
         replicas: 2
-        image: swr.ap-southeast-1.myhuaweicloud.com/karmada/karmada-aggregated-apiserver:latest
       - name: agent
         replicas: 2
         image: swr.ap-southeast-1.myhuaweicloud.com/karmada/karmada-agent:latest
@@ -25,5 +24,5 @@ spec:
   images:
     karmadaRegistry: swr.ap-southeast-1.myhuaweicloud.com
     karmadaVersion: latest
-    kubeResgistry: k8s-gcr.m.daocloud.io
+    kubeResgistry: k8s.gcr.io
     kubeVersion: "v1.24.2"
