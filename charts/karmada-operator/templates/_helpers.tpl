@@ -2,48 +2,25 @@
 {{/*
 Expand the name of the chart.
 */}}
-{{- define "karmadaoperator.name" -}}
-karmada-operator
-{{- end }}
 
 {{/*
-Return the namespace of karmada-operator install.
+Create a default fully qualified app name.
+We truncate at 63 chars because some Kubernetes name fields are limited to this (by the DNS naming spec).
 */}}
-{{- define "karmadaoperator.namespace" -}}
-{{- default .Release.Namespace -}}
+{{- define "karmada.operator.fullname" -}}
+{{- printf "%s-%s" (include "common.names.fullname" .) "operator" | trunc 63 | trimSuffix "-" -}}
 {{- end -}}
 
 {{/*
-Return the proper karmada-operator controllerManager image name
+Return the proper karmada operator image name
 */}}
-{{- define "karmadaoperator.controllerManager.image" -}}
-{{ include "common.images.image" (dict "imageRoot" .Values.controllerManager.image) }}
+{{- define "karmada.operator.image" -}}
+{{ include "common.images.image" (dict "imageRoot" .Values.operator.image "global" .Values.global) }}
 {{- end -}}
-
 
 {{/*
-Return the proper karmada-operator controllerManager Image Registry Secret Names
+Return the proper Docker Image Registry Secret Names
 */}}
-{{- define "karmadaoperator.controllerManager.imagePullSecrets" -}}
-{{ include "common.images.pullSecrets" (dict "images" (list .Values.controllerManager.image)) }}
-{{- end -}}
-
-
-{{- define "karmadaoperator.controllerManager.labels" -}}
-{{ $name :=  include "karmadaoperator.name" . }}
-{{- if .Values.controllerManager.labels -}}
-{{- range $key, $value := .Values.controllerManager.labels -}}
-{{ $key }}: {{ $value }}
-{{- end -}}
-{{- else -}}
-app: {{ $name }}-controller-manager
-{{- end -}}
-{{- end -}}
-
-{{- define "karmadaoperator.controllerManager.podLabels" -}}
-{{- if .Values.controllerManager.podLabels }}
-{{- range $key, $value := .Values.controllerManager.podLabels}}
-{{ $key }}: {{ $value }}
-{{- end}}
-{{- end }}
+{{- define "karmada.operator.imagePullSecrets" -}}
+{{ include "common.images.pullSecrets" (dict "images" (list .Values.operator.image) "global" .Values.global) }}
 {{- end -}}

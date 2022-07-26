@@ -7,14 +7,11 @@ ENV GO111MODULE=on \
 
 COPY . .
 
-
-RUN CGO_ENABLED=0 GOOS=linux GOARCH=amd64 go build -mod=vendor  -o manager ./cmd/controller-manager
+RUN CGO_ENABLED=0 GOOS=linux GOARCH=amd64 go build -mod=vendor -o operator ./cmd/controller-manager
 
 FROM alpine:3.15
 
 RUN sed -i 's/dl-cdn.alpinelinux.org/mirrors.aliyun.com/g' /etc/apk/repositories
 
 ENV TZ=Asia/Shanghai
-COPY --from=build /workspace/manager .
-
-ENTRYPOINT ["/manager"]
+COPY --from=build /workspace/operator /usr/local/bin/operator
