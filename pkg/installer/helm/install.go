@@ -20,6 +20,7 @@ import (
 	"context"
 	"errors"
 	"fmt"
+	"io/ioutil"
 	"net/url"
 	"os"
 	"path/filepath"
@@ -45,7 +46,7 @@ import (
 )
 
 const (
-	chartBasePath    = "/var/run"
+	chartBasePath    = "/var/run/karmada-operator"
 	KarmadaNamespace = "karmada-system"
 	DefaulTimeout    = time.Minute * 3
 	WaitPodTimeout   = time.Second * 60
@@ -84,7 +85,7 @@ func NewInstallWorkflow(destHost string,
 func (install *installWorkflow) Install(kmd *installv1alpha1.KarmadaDeployment) error {
 	var err error
 	switch kmd.Status.Phase {
-	case "", installv1alpha1.PreflightPhase:
+	case "", installv1alpha1.PreflightPhase, installv1alpha1.DeployingPhase:
 		if err = install.Preflight(kmd); err != nil {
 			return err
 		}
@@ -93,7 +94,7 @@ func (install *installWorkflow) Install(kmd *installv1alpha1.KarmadaDeployment) 
 		}
 
 		fallthrough
-	case installv1alpha1.DeployedPhase, installv1alpha1.WaitingPhase:
+	case installv1alpha1.WaitingPhase:
 		if err := install.Wait(kmd); err != nil {
 			return err
 		}
@@ -107,6 +108,8 @@ func (install *installWorkflow) Install(kmd *installv1alpha1.KarmadaDeployment) 
 }
 
 func (install *installWorkflow) Preflight(kmd *installv1alpha1.KarmadaDeployment) error {
+	klog.Infof("[helm-installer]:start proflight phase for %s", kmd.Name)
+
 	var err error
 	if err = status.SetStatusPhase(install.kmdClient, kmd, installv1alpha1.PreflightPhase); err != nil {
 		return err
@@ -114,11 +117,13 @@ func (install *installWorkflow) Preflight(kmd *installv1alpha1.KarmadaDeployment
 
 	install.chartPath, _, err = FetchChart(install.helmClient, install.chartResource)
 	if err != nil {
+		klog.Errorf("[helm-installer]:failed to fetch karmada chart pkg: %v", err)
 		return err
 	}
 
 	if install.values == nil {
 		if install.values, err = ComposeValues(kmd); err != nil {
+			klog.Errorf("[helm-installer]:failed to compose chart values: %v", err)
 			return err
 		}
 	}
@@ -170,6 +175,12 @@ func (c ChartResource) CleanRepoURL() string {
 }
 
 func (install *installWorkflow) Deploy(kmd *installv1alpha1.KarmadaDeployment) error {
+	klog.Infof("[helm-installer]:start deploy phase for %s", kmd.Name)
+
+	if err := status.SetStatusPhase(install.kmdClient, kmd, installv1alpha1.DeployingPhase); err != nil {
+		return err
+	}
+
 	if len(kmd.Spec.ControlPlane.Namespace) == 0 {
 		kmd.Spec.ControlPlane.Namespace = KarmadaNamespace
 	}
@@ -189,7 +200,6 @@ func (install *installWorkflow) Deploy(kmd *installv1alpha1.KarmadaDeployment) e
 	releaseName := fmt.Sprintf("karmada-%s", kmd.Name)
 	install.release, err = install.helmClient.UpgradeFromPath(install.chartPath,
 		releaseName, install.values, helm.UpgradeOptions{
-
 			Namespace:         ns.Name,
 			Timeout:           DefaulTimeout,
 			Install:           true,
@@ -197,16 +207,18 @@ func (install *installWorkflow) Deploy(kmd *installv1alpha1.KarmadaDeployment) e
 			SkipCRDs:          false,
 			Wait:              false,
 			Atomic:            true,
-			DisableValidation: false,
+			DisableValidation: true,
 		})
 	if err != nil {
+		klog.Errorf("failed to install karmada chart for %s: %v", kmd.Name, err)
 		return err
 	}
 
-	return status.SetStatusPhase(install.kmdClient, kmd, installv1alpha1.DeployedPhase)
+	return nil
 }
 
 func (install *installWorkflow) Wait(kmd *installv1alpha1.KarmadaDeployment) error {
+	klog.Infof("[helm-installer]:start wait phase for %s", kmd.Name)
 	release, err := install.GetRelease(kmd)
 	if err != nil {
 		return err
@@ -220,6 +232,7 @@ func (install *installWorkflow) Wait(kmd *installv1alpha1.KarmadaDeployment) err
 	karmadaApiserver := fmt.Sprintf("%s-karmada-apiserver", release.Name)
 	for _, m := range []string{karmadaApiserver, "etcd"} {
 		if _, err := waitForPodReady(install.client, release.Namespace, m); err != nil {
+			klog.Errorf("failed to wait %s to ready: %v", m, err)
 			return err
 		}
 	}
@@ -275,6 +288,7 @@ func waitForPodReady(client clientset.Interface, namespace, deploymentName strin
 }
 
 func (install *installWorkflow) Completed(kmd *installv1alpha1.KarmadaDeployment) error {
+	klog.Infof("[helm-installer]:start completed phase for %s", kmd.Name)
 	release, err := install.GetRelease(kmd)
 	if err != nil {
 		return err
@@ -300,15 +314,16 @@ func (install *installWorkflow) Completed(kmd *installv1alpha1.KarmadaDeployment
 	// restore the karmda kubeconfig to secret, and set the secret info to kmd status.
 	secretCopy := &corev1.Secret{
 		ObjectMeta: metav1.ObjectMeta{
-			Name:      secret.Name,
-			Namespace: kmd.Namespace,
+			GenerateName: fmt.Sprintf("%s-", secret.Name),
+			Namespace:    kmd.Namespace,
 		},
 		Data: secret.Data,
 		Type: secret.Type,
 	}
-	if secretCopy, err = install.client.CoreV1().Secrets(kmd.Namespace).Create(context.TODO(), secretCopy, metav1.CreateOptions{}); err != nil {
-		if apierrors.IsAlreadyExists(err) {
 
+	currentNamespace := GetCurrentNSOrDefault()
+	if secretCopy, err = install.client.CoreV1().Secrets(currentNamespace).Create(context.TODO(), secretCopy, metav1.CreateOptions{}); err != nil {
+		if apierrors.IsAlreadyExists(err) {
 			secretCopy, err = install.client.CoreV1().Secrets(kmd.Namespace).Update(context.TODO(), secretCopy, metav1.UpdateOptions{})
 			if err != nil {
 				return err
@@ -348,4 +363,26 @@ func (install *installWorkflow) GetRelease(kmd *installv1alpha1.KarmadaDeploymen
 	}
 
 	return install.release, nil
+}
+
+// GetCurrentNS fetch namespace the current pod running in. reference to client-go (config *inClusterClientConfig) Namespace() (string, bool, error).
+func GetCurrentNS() (string, error) {
+	if ns := os.Getenv("POD_NAMESPACE"); ns != "" {
+		return ns, nil
+	}
+
+	if data, err := ioutil.ReadFile("/var/run/secrets/kubernetes.io/serviceaccount/namespace"); err == nil {
+		if ns := strings.TrimSpace(string(data)); len(ns) > 0 {
+			return ns, nil
+		}
+	}
+	return "", fmt.Errorf("can not get namespace where pods running in")
+}
+
+func GetCurrentNSOrDefault() string {
+	ns, err := GetCurrentNS()
+	if err != nil {
+		return "default"
+	}
+	return ns
 }

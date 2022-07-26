@@ -24,6 +24,7 @@ import (
 
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	clientset "k8s.io/client-go/kubernetes"
+	"k8s.io/klog/v2"
 
 	installv1alpha1 "github.com/daocloud/karmada-operator/pkg/apis/install/v1alpha1"
 	"github.com/daocloud/karmada-operator/pkg/helm"
@@ -52,6 +53,7 @@ func NewUninstallWorkflow(client clientset.Interface, destClient clientset.Inter
 }
 
 func (un *uninstallWorkflow) Uninstall(kmd *installv1alpha1.KarmadaDeployment) error {
+	klog.Infof("[helm-installer]:start uninstall phase for %s", kmd.Name)
 	release, err := GetRelease(un.helmClient, kmd)
 	if err != nil {
 		return err
@@ -70,6 +72,7 @@ func (un *uninstallWorkflow) Uninstall(kmd *installv1alpha1.KarmadaDeployment) e
 
 	// TODO: if the karmada release is not loead, ingore the err.
 	if err != nil && !strings.Contains(err.Error(), ReleaseNotLoadErrMsg) {
+		klog.Errorf("[helm-installer]:failed to uninstall karmada for %s", kmd.Name)
 		return err
 	}
 
@@ -100,5 +103,7 @@ func (un *uninstallWorkflow) cleanup(kd *installv1alpha1.KarmadaDeployment, rele
 	if secretRef != nil {
 		un.client.CoreV1().Secrets(secretRef.Namespace).Delete(context.TODO(), secretRef.Name, metav1.DeleteOptions{})
 	}
+
+	// TODO: delete kubeconfig from the directory
 	return nil
 }

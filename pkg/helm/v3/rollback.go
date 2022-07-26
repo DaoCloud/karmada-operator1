@@ -7,7 +7,7 @@ import (
 )
 
 func (h *HelmV3) Rollback(releaseName string, opts helm.RollbackOptions) (*helm.Release, error) {
-	cfg, err := newActionConfig(h.kubeConfig, h.infoLogFunc(opts.Namespace, releaseName), opts.Namespace, "")
+	cfg, err := newActionConfig(h.kubeconfigPath, h.kubeConfig, h.infoLogFunc(opts.Namespace, releaseName), opts.Namespace, "")
 	if err != nil {
 		return nil, err
 	}

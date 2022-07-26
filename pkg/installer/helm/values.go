@@ -19,19 +19,17 @@ var (
 		"controllerManager", "agent", "aggregatedApiServer"}
 )
 
-type InstallMode string
-
 const (
-	HostInstallMode      InstallMode = "host"
-	AgentInstallMode     InstallMode = "agent"
-	ComponentInstallMode InstallMode = "component"
+	HostInstallMode      = "host"
+	AgentInstallMode     = "agent"
+	ComponentInstallMode = "component"
 )
 
 type Values struct {
-	InstallMode InstallMode                 `yaml:"installMode,omitempty"`
-	Components  []installv1alpha1.Component `yaml:"components,omitempty"`
-	ETCD        ETCD                        `yaml:"etcd,omitempty"`
-	Modules     map[string]Module           `yaml:",inline"`
+	// InstallMode string                      `yaml:"installMode,omitempty"`
+	Components []installv1alpha1.Component `yaml:"components,omitempty"`
+	ETCD       ETCD                        `yaml:"etcd,omitempty"`
+	Modules    map[string]Module           `yaml:",inline"`
 }
 
 type Module struct {
@@ -167,7 +165,7 @@ func Convert_KarmadaDeployment_To_Values(kd *installv1alpha1.KarmadaDeployment) 
 
 	// TODO: it's not work.
 	if len(kd.Spec.ControlPlane.Components) > 0 {
-		values.InstallMode = ComponentInstallMode
+		// values.InstallMode = ComponentInstallMode
 		values.Components = kd.Spec.ControlPlane.Components
 	}
 

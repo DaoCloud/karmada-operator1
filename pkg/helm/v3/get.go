@@ -13,7 +13,7 @@ type (
 )
 
 func (h *HelmV3) Get(releaseName string, opts helm.GetOptions) (*helm.Release, error) {
-	cfg, err := newActionConfig(h.kubeConfig, h.infoLogFunc(opts.Namespace, releaseName), opts.Namespace, "")
+	cfg, err := newActionConfig(h.kubeconfigPath, h.kubeConfig, h.infoLogFunc(opts.Namespace, releaseName), opts.Namespace, "")
 	if err != nil {
 		return nil, err
 	}
@@ -37,7 +37,7 @@ func (opts getOptions) configure(action *action.Get) {
 }
 
 func (h *HelmV3) Status(releaseName string, opts helm.StatusOptions) (helm.Status, error) {
-	cfg, err := newActionConfig(h.kubeConfig, h.infoLogFunc(opts.Namespace, releaseName), opts.Namespace, "")
+	cfg, err := newActionConfig(h.kubeconfigPath, h.kubeConfig, h.infoLogFunc(opts.Namespace, releaseName), opts.Namespace, "")
 	if err != nil {
 		return "", err
 	}

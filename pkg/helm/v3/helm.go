@@ -37,14 +37,15 @@ type HelmOptions struct {
 }
 
 type HelmV3 struct {
-	kubeConfig *rest.Config
-	logger     log.Logger
+	kubeconfigPath string
+	kubeConfig     *rest.Config
+	logger         log.Logger
 }
 
 type infoLogFunc func(string, ...interface{})
 
 // New creates a new HelmV3 client
-func New(logger log.Logger, kubeConfig *rest.Config) helm.Client {
+func New(logger log.Logger, kubeconfigPath string, kubeConfig *rest.Config) helm.Client {
 	// Add CRDs to the scheme. They are missing by default but required
 	// by Helm v3.
 	if err := apiextv1beta1.AddToScheme(scheme.Scheme); err != nil {
@@ -52,8 +53,9 @@ func New(logger log.Logger, kubeConfig *rest.Config) helm.Client {
 		panic(err)
 	}
 	return &HelmV3{
-		kubeConfig: kubeConfig,
-		logger:     logger,
+		kubeconfigPath: kubeconfigPath,
+		kubeConfig:     kubeConfig,
+		logger:         logger,
 	}
 }
 
@@ -70,9 +72,9 @@ func (h *HelmV3) infoLogFunc(namespace string, releaseName string) infoLogFunc {
 	}
 }
 
-func newActionConfig(config *rest.Config, logFunc infoLogFunc, namespace, driver string) (*action.Configuration, error) {
+func newActionConfig(kubeconfig string, config *rest.Config, logFunc infoLogFunc, namespace, driver string) (*action.Configuration, error) {
 
-	restClientGetter := newConfigFlags(config, namespace)
+	restClientGetter := newConfigFlags(kubeconfig, config, namespace)
 	kubeClient := &kube.Client{
 		Factory: util.NewFactory(restClientGetter),
 		Log:     logFunc,
@@ -95,13 +97,17 @@ func newActionConfig(config *rest.Config, logFunc infoLogFunc, namespace, driver
 	}, nil
 }
 
-func newConfigFlags(config *rest.Config, namespace string) *genericclioptions.ConfigFlags {
-	return &genericclioptions.ConfigFlags{
+func newConfigFlags(kubeconfig string, config *rest.Config, namespace string) *genericclioptions.ConfigFlags {
+	flags := &genericclioptions.ConfigFlags{
 		Namespace:   &namespace,
 		APIServer:   &config.Host,
 		CAFile:      &config.CAFile,
 		BearerToken: &config.BearerToken,
 	}
+	if len(kubeconfig) > 0 {
+		flags.KubeConfig = &kubeconfig
+	}
+	return flags
 }
 
 func newStorageDriver(client *kubernetes.Clientset, logFunc infoLogFunc, namespace, d string) (*storage.Storage, error) {
