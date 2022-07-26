@@ -26,7 +26,7 @@ operator:
   ## karmada chart resource
   chartResource:
     ## karmada chart resource repository url
-    repoUrl: https://release.daocloud.io/chartrepo/karmada-operator
+    repoUrl: https://release.daocloud.io/chartrepo/karmada
     ## karmada chart version
     version: 0.0.5
     ## karmada chart name

@@ -21,6 +21,7 @@ import (
 	"sync"
 
 	clientset "k8s.io/client-go/kubernetes"
+	"k8s.io/klog/v2"
 
 	installv1alpha1 "github.com/daocloud/karmada-operator/pkg/apis/install/v1alpha1"
 	"github.com/daocloud/karmada-operator/pkg/generated/clientset/versioned"
@@ -66,6 +67,7 @@ func (factory *InstallerFactory) SyncWithAction(kmd *installv1alpha1.KarmadaDepl
 		return err
 	}
 
+	klog.V(4).Infof("start %v workflow for %s", action, kmd.Name)
 	switch action {
 	case InstallAction:
 		return installer.Install(kmd)

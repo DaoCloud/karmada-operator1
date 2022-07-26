@@ -27,6 +27,8 @@ import (
 
 func SetStatusPhase(client versioned.Interface, kmd *installv1alpha1.KarmadaDeployment, phase installv1alpha1.Phase) error {
 	firstTry := true
+	controlPlaneReady := kmd.Status.ControlPlaneReady
+	secretRef := kmd.Status.SecretRef
 	return retry.RetryOnConflict(retry.DefaultBackoff, func() (err error) {
 		if !firstTry {
 			var getErr error
@@ -39,6 +41,8 @@ func SetStatusPhase(client versioned.Interface, kmd *installv1alpha1.KarmadaDepl
 		}
 
 		kmd.Status.Phase = phase
+		kmd.Status.SecretRef = secretRef
+		kmd.Status.ControlPlaneReady = controlPlaneReady
 		kmdc := kmd.DeepCopy()
 
 		_, err = client.InstallV1alpha1().KarmadaDeployments().

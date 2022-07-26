@@ -8,7 +8,7 @@ import (
 )
 
 func (h *HelmV3) History(releaseName string, opts helm.HistoryOptions) ([]*helm.Release, error) {
-	cfg, err := newActionConfig(h.kubeConfig, h.infoLogFunc(opts.Namespace, releaseName), opts.Namespace, "")
+	cfg, err := newActionConfig(h.kubeconfigPath, h.kubeConfig, h.infoLogFunc(opts.Namespace, releaseName), opts.Namespace, "")
 	if err != nil {
 		return nil, err
 	}

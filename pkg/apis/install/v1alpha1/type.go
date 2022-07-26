@@ -224,7 +224,7 @@ type Phase string
 
 const (
 	PreflightPhase         Phase = "Preflight"
-	DeployedPhase          Phase = "Deployed"
+	DeployingPhase         Phase = "Deploying"
 	WaitingPhase           Phase = "Waiting"
 	InstalledCRDPhase      Phase = "InstalledCRD"
 	ControlPlaneReadyPhase Phase = "Completed"
