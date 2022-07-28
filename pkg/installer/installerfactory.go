@@ -89,20 +89,20 @@ func (factory *InstallerFactory) Sync(kmd *installv1alpha1.KarmadaDeployment) er
 }
 
 func (factory *InstallerFactory) GetInstaller(kmd *installv1alpha1.KarmadaDeployment) (Interface, error) {
-	if installer, exist := func() (Interface, bool) {
-		factory.lock.RLock()
-		defer factory.lock.RUnlock()
+	// if installer, exist := func() (Interface, bool) {
+	// 	factory.lock.RLock()
+	// 	defer factory.lock.RUnlock()
 
-		if installer, exist := factory.installers[kmd.Name]; exist {
-			return installer, true
-		}
-		return nil, false
-	}(); exist {
-		return installer, nil
-	}
+	// 	if installer, exist := factory.installers[kmd.Name]; exist {
+	// 		return installer, true
+	// 	}
+	// 	return nil, false
+	// }(); exist {
+	// 	return installer, nil
+	// }
 
-	factory.lock.Lock()
-	defer factory.lock.Unlock()
+	// factory.lock.Lock()
+	// defer factory.lock.Unlock()
 
 	var err error
 	var installer Interface
@@ -117,6 +117,6 @@ func (factory *InstallerFactory) GetInstaller(kmd *installv1alpha1.KarmadaDeploy
 		return nil, err
 	}
 
-	factory.installers[kmd.Name] = installer
+	// factory.installers[kmd.Name] = installer
 	return installer, nil
 }

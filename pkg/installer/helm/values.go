@@ -45,7 +45,7 @@ type Image struct {
 
 type ETCD struct {
 	Mode     string   `yaml:"-,omitempty"`
-	Internal Internal `yaml:"external,omitempty"`
+	Internal Internal `yaml:"internal,omitempty"`
 }
 
 type Internal struct {
@@ -58,6 +58,10 @@ type PVC struct {
 	StorageClass string `yaml:"storageClass,omitempty"`
 	// TOOD:
 	Size string `yaml:"size,omitempty"`
+}
+
+func (i *Image) isEmpty() bool {
+	return len(i.Registry) == 0 && len(i.Repository) == 0 && len(i.Tag) == 0
 }
 
 func ComposeValues(kd *installv1alpha1.KarmadaDeployment) ([]byte, error) {
@@ -98,7 +102,9 @@ func Convert_KarmadaDeployment_To_Values(kd *installv1alpha1.KarmadaDeployment) 
 			if len(kd.Spec.Images.KarmadaVersion) > 0 {
 				image.Tag = kd.Spec.Images.KarmadaVersion
 			}
-			modeImages[k] = image
+			if !image.isEmpty() {
+				modeImages[k] = image
+			}
 		}
 
 		for _, k := range Kubernates {
@@ -111,7 +117,9 @@ func Convert_KarmadaDeployment_To_Values(kd *installv1alpha1.KarmadaDeployment) 
 			if k != "etcd" && len(kd.Spec.Images.KubeVersion) > 0 {
 				image.Tag = kd.Spec.Images.KubeVersion
 			}
-			modeImages[k] = image
+			if !image.isEmpty() {
+				modeImages[k] = image
+			}
 		}
 	}
 
@@ -158,9 +166,14 @@ func Convert_KarmadaDeployment_To_Values(kd *installv1alpha1.KarmadaDeployment) 
 			continue
 		}
 
-		m := values.Modules[k]
-		m.Image = image
-		values.Modules[k] = m
+		if m, exist := values.Modules[k]; exist {
+			m.Image = image
+			values.Modules[k] = m
+		} else {
+			values.Modules[k] = Module{
+				Image: image,
+			}
+		}
 	}
 
 	// TODO: it's not work.
