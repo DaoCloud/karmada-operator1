@@ -82,29 +82,59 @@ kubectl delete ns karmada-operator-system
 ### 1. Install controller manager
 Edited values.yaml
 ```YAML
-controllerManager:
-  ## @param controllerManager.labels
-  labels:
-    app: karmada-operator-controller-manager
-  ## @param controllerManager.replicaCount target replicas
-  replicaCount: 2
-  ## @param controllerManager.podAnnotations
+## Default values for charts.
+## This is a YAML-formatted file.
+## Declare variables to be passed into your templates.
+
+## @param global karmada global config
+global:
+  ## @param global.imageRegistry Global Docker image registry
+  imageRegistry: "release.daocloud.io"
+  ## E.g.
+  ## imagePullSecrets:
+  ##   - myRegistryKeySecretName
+  imagePullSecrets: []
+
+## @param commonLabels Add labels to all the deployed resources (sub-charts are not considered). Evaluated as a template
+##
+commonLabels: {}
+## @param commonAnnotations Annotations to add to all deployed objects
+##
+commonAnnotations: {}
+## @param installCRDs define flag whether to install CRD resources
+##
+installCRDs: true
+
+## operator config
+operator:
+  ## karmada chart resource
+  chartResource:
+    ## karmada chart resource repository url
+    repoUrl: https://release.daocloud.io/chartrepo/karmada
+    ## karmada chart version
+    version: 0.0.5
+    ## karmada chart name
+    name: karmada
+  ## @param operator.labels
+  labels: {}
+  ## @param operator.replicaCount target replicas
+  replicaCount: 1
+  ## @param operator.podAnnotations
   podAnnotations: {}
-  ## @param controllerManager.podLabels
+  ## @param operator.podLabels
   podLabels: {}
-  ## @param image.registry karmada-operator image registry
-  ## @param image.repository karmada-operator  image repository
-  ## @param image.tag karmada-operator  image tag (immutable tags are recommended)
-  ## @param image.pullPolicy karmada-operator  image pull policy
+  ## @param image.registry karmada-operator operator image registry
+  ## @param image.repository karmada-operator operator image repository
+  ## @param image.tag karmada-operator operator image tag (immutable tags are recommended)
+  ## @param image.pullPolicy karmada-operator operator image pull policy
   ## @param image.pullSecrets Specify docker-registry secret names as an array
   ##
   image:
     registry: release.daocloud.io
-    repository: kairship/karmada-operator-controller-manager
+    repository: karmada/karmada-operator
     tag: "v0.0.1"
     ## Specify a imagePullPolicy
     ## Defaults to 'Always' if image tag is 'latest', else set to 'IfNotPresent'
-    ## ref: https://kubernetes.io/docs/user-guide/images/#pre-pulling-images
     ##
     pullPolicy: IfNotPresent
     ## Optionally specify an array of imagePullSecrets.
@@ -114,7 +144,7 @@ controllerManager:
     ##   - myRegistryKeySecretName
     ##
     pullSecrets: []
-  ## @param controllerManager.resources
+  ## @param operator.resources
   resources:
     {}
     # If you do want to specify resources, uncomment the following
@@ -125,18 +155,13 @@ controllerManager:
     # requests:
     #   cpu: 100m
   #   memory: 128Mi
-  ## @param controllerManager.nodeSelector
+  ## @param operator.nodeSelector
   nodeSelector: {}
-  ## @param controllerManager.affinity
+  ## @param operator.affinity
   affinity: {}
-  ## @param controllerManager.tolerations
-  tolerations:
-    - key: node-role.kubernetes.io/master
-      operator: Exists
-  ## @param controllerManager.kubeconfigPath
-  kubeconfigPath: /root/.kube
-  ## @param controllerManager.localKubeconfig
-  localKubeconfig: true
+  ## @param operator.tolerations
+  tolerations: []
+
 ```
 ## Configuration
 

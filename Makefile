@@ -103,6 +103,7 @@ update-crds:
 push-chart:
 	#helm package -u ./charts/ -d ./dist/
 	helm repo add karmada-operator-release $(HELM_REPO)
+	helm dependency update ./charts/karmada-operator
 	helm package ./charts/karmada-operator -d dist --version $(KARMADA_OPERATOR_CHART_VERSION)
 	helm cm-push ./dist/karmada-operator-$(KARMADA_OPERATOR_CHART_VERSION).tgz  karmada-operator-release -a $(KARMADA_OPERATOR_CHART_VERSION) -v $(KARMADA_OPERATOR_CHART_VERSION) -u $(REGISTRY_USER_NAME)  -p $(REGISTRY_PASSWORD)
 
@@ -116,4 +117,4 @@ release: karmada-operator-imgs upload-image push-chart
 ## Deploy current version of helm package to target cluster of $(YOUR_KUBE_CONF) [not defined]
 .PHONY: deploy
 deploy:
-	bash hack/deploy.sh  "$(KARMADA_OPERATOR_CHART_VERSION)" "$(KARMADA_OPERATOR_IMAGE_VERSION)"  "$(YOUR_KUBE_CONF)" "$(KARMADA_OPERATOR_NAMESPACE)" "$(HELM_REPO)" "$(REGISTRY_REPO)" "$(DEPLOY_ENV)"
+	bash hack/deploy.sh  "$(KARMADA_OPERATOR_CHART_VERSION)" "$(KARMADA_OPERATOR_IMAGE_VERSION)"  "$(YOUR_KUBE_CONF)" "$(KARMADA_OPERATOR_NAMESPACE)" "$(HELM_REPO)" "$(REGISTRY_SERVER_ADDRESS)" "$(DEPLOY_ENV)"
