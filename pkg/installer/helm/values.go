@@ -26,10 +26,10 @@ const (
 )
 
 type Values struct {
-	// InstallMode string                      `yaml:"installMode,omitempty"`
-	Components []installv1alpha1.Component `yaml:"components,omitempty"`
-	ETCD       ETCD                        `yaml:"etcd,omitempty"`
-	Modules    map[string]Module           `yaml:",inline"`
+	InstallMode string                      `yaml:"installMode,omitempty"`
+	Components  []installv1alpha1.Component `yaml:"components,omitempty"`
+	ETCD        ETCD                        `yaml:"etcd,omitempty"`
+	Modules     map[string]Module           `yaml:",inline"`
 }
 
 type Module struct {
@@ -64,9 +64,24 @@ func (i *Image) isEmpty() bool {
 	return len(i.Registry) == 0 && len(i.Repository) == 0 && len(i.Tag) == 0
 }
 
-func ComposeValues(kd *installv1alpha1.KarmadaDeployment) ([]byte, error) {
-	values := Convert_KarmadaDeployment_To_Values(kd)
-	return yaml.Marshal(values)
+func (v *Values) ValuesWithHostInstallMode() ([]byte, error) {
+	vc := *v
+	vc.InstallMode = HostInstallMode
+	vc.Components = nil
+
+	// TODO: remove redundant module.
+	return yaml.Marshal(vc)
+}
+
+func (v *Values) ValuesWithComponentInstallMode() ([]byte, error) {
+	vc := *v
+	vc.InstallMode = ComponentInstallMode
+	vc.ETCD = ETCD{}
+	return yaml.Marshal(vc)
+}
+
+func Compose(kd *installv1alpha1.KarmadaDeployment) *Values {
+	return Convert_KarmadaDeployment_To_Values(kd)
 }
 
 func Convert_KarmadaDeployment_To_Values(kd *installv1alpha1.KarmadaDeployment) *Values {
