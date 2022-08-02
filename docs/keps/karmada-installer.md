@@ -200,6 +200,8 @@ type ETCD struct {
 * 实现 member 集群接入 karmada 集群（pull 和 push 双模式接入）
 * 实时的监控 karmada 各个组件 pod 运行情况（pod 数量，项目）
 
+#### 阶段4: 实现 karmada 集群的平滑升级、迁移
+
 ### FQA：
 1. 为什么我们没有直接采纳 vivo 社区的 operator：
 
