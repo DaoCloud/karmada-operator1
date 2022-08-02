@@ -201,19 +201,18 @@ type ETCD struct {
 * 实时的监控 karmada 各个组件 pod 运行情况（pod 数量，项目）
 
 ### FQA：
-1. 为什么我们不能使用 vivo 社区的 operator：
+1. 为什么我们没有直接采纳 vivo 社区的 operator：
 
-在此之前，对 vivo 社区的 karmada-operator 进行了深度的调研。此项目目前并不能满足平台生产化使用需求：
+在此之前，对 vivo 社区的 karmada-operator 进行了深度的调研。此项目目前并不能满足我们生产化使用需求：
 
-* vivo/karmada-operator 项目功能并不稳定，对公司平台来说具有极大的风险性
-* vivo/karmada-operator 用的是 ansible operator，运维属性比较强，开发者不友好
-* 需要提供 host 的账号密码，对云平台来说，具有不安全性
-* 拷贝了很多 karmada 原始 repo 的 yaml 文件到项目中，没有很好的解耦，导致非常难以维护
+* vivo/karmada-operator 项目功能不完善、迭代进度不可控，目前不能开箱即用
+* vivo/karmada-operator 用的是 ansible operator，运维属性比较强，开发者不是非常友好，参与贡献不是很容易
+* 需要提供 host 的账号密码，对云平台来说，安全性得不到保证(karmada 安装在基于 k8s 的环境中也没有必要使用 ssh 账号密码)
+* 拷贝了很多 karmada 原始 repo 的 yaml 文件到项目中，耦合度高，后期非常难以持续维护
 * karmada-operator crd 定义不能适配不同场景下的部署需求
 
 2. 跟 vivo/operator 项目对比
 
-* 公司平台严重依赖此项目，公司有多人参与此项目开发，更快的开发和迭代
-* 更加符合多云平台的应用
-* 功能更加完善
+* 云原生，开箱即用，helm 一键部署
+* 功能更加完善(会考虑 karmada 整个声明周期的管理)
 * 更加符合云原生项目架构，对开发者更加友好
