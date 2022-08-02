@@ -78,6 +78,11 @@ kubectl delete clusterRoleBinding/karmada-operator
 kubectl delete ns karmada-operator-system
 ```
 
+## Demo
+
+![screenshot_gif](https://github.com/DaoCloud/karmada-operator/tree/main/docs/demo.gif)
+
+
 ## Example
 ### 1. Install controller manager
 Edited values.yaml
