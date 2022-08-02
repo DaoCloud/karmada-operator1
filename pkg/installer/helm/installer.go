@@ -31,14 +31,10 @@ import (
 	"k8s.io/klog/v2"
 
 	installv1alpha1 "github.com/daocloud/karmada-operator/pkg/apis/install/v1alpha1"
+	"github.com/daocloud/karmada-operator/pkg/constants"
 	"github.com/daocloud/karmada-operator/pkg/generated/clientset/versioned"
 	helm "github.com/daocloud/karmada-operator/pkg/helm"
 	helmv3 "github.com/daocloud/karmada-operator/pkg/helm/v3"
-)
-
-const (
-	// KubeconfigBasePath = "/var/run/karmada-operator/kubeconfig"
-	KubeconfigBasePath = "/var/run/karmada-operator/config"
 )
 
 var (
@@ -80,6 +76,8 @@ func NewHelmInstaller(kmd *installv1alpha1.KarmadaDeployment, kmdClient versione
 		return nil, err
 	}
 
+	klog.V(5).Info("[helm-installer]:the endpoint kubeconfig info: %s", string(kubeconfig))
+
 	config, err := BuildClusterKubeconfig(kubeconfig)
 	if err != nil {
 		return nil, err
@@ -101,13 +99,13 @@ func NewHelmInstaller(kmd *installv1alpha1.KarmadaDeployment, kmdClient versione
 // WriteKubeconfig write kubeconfig to the directory "/var/run/karmada-operator"
 // this is a bug to helm client.
 func WriteKubeconfig(kubeconfig []byte, kmdName string) (string, error) {
-	if exist, _ := PathExists(KubeconfigBasePath); !exist {
-		if err := os.MkdirAll(KubeconfigBasePath, 0760); err != nil {
+	if exist, _ := PathExists(constants.KubeconfigBasePath); !exist {
+		if err := os.MkdirAll(constants.KubeconfigBasePath, 0760); err != nil {
 			return "", err
 		}
 	}
 
-	fileName := filepath.Join(KubeconfigBasePath, kmdName)
+	fileName := filepath.Join(constants.KubeconfigBasePath, kmdName)
 	if err := ioutil.WriteFile(fileName, kubeconfig, 0660); err != nil {
 		return "", err
 	}
@@ -140,4 +138,8 @@ func BuildClusterKubeconfig(kubeconfig []byte) (*rest.Config, error) {
 
 func GetRelease(helmClient helm.Client, kmd *installv1alpha1.KarmadaDeployment) (*helm.Release, error) {
 	return helmClient.Get(fmt.Sprintf("karmada-%s", kmd.Name), helm.GetOptions{Namespace: kmd.Namespace})
+}
+
+func GetComponentRelease(helmClient helm.Client, kmd *installv1alpha1.KarmadaDeployment) (*helm.Release, error) {
+	return helmClient.Get(fmt.Sprintf("karmada-%s-component", kmd.Name), helm.GetOptions{Namespace: kmd.Namespace})
 }

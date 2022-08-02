@@ -40,23 +40,27 @@ import (
 	"k8s.io/klog/v2"
 
 	installv1alpha1 "github.com/daocloud/karmada-operator/pkg/apis/install/v1alpha1"
+	"github.com/daocloud/karmada-operator/pkg/constants"
 	"github.com/daocloud/karmada-operator/pkg/generated/clientset/versioned"
 	helm "github.com/daocloud/karmada-operator/pkg/helm"
 	"github.com/daocloud/karmada-operator/pkg/status"
 )
 
+var (
+	ReleaseExistErrMsg = "cannot re-use a name that is still in use"
+)
+
 const (
-	chartBasePath    = "/var/run/karmada-operator"
-	KarmadaNamespace = "karmada-system"
-	DefaulTimeout    = time.Minute * 3
-	WaitPodTimeout   = time.Second * 60
+	DefaulTimeout  = time.Minute * 3
+	WaitPodTimeout = time.Second * 60
 )
 
 type installWorkflow struct {
-	release   *helm.Release
-	values    []byte
-	chartPath string
-	destHost  string
+	release          *helm.Release
+	componentRelease *helm.Release
+	values           *Values
+	chartPath        string
+	destHost         string
 
 	client        clientset.Interface
 	helmClient    helm.Client
@@ -122,17 +126,14 @@ func (install *installWorkflow) Preflight(kmd *installv1alpha1.KarmadaDeployment
 	}
 
 	if install.values == nil {
-		if install.values, err = ComposeValues(kmd); err != nil {
-			klog.Errorf("[helm-installer]:failed to compose chart values: %v", err)
-			return err
-		}
+		install.values = Compose(kmd)
 	}
 
 	return nil
 }
 
 func FetchChart(helmClient helm.Client, source *ChartResource) (string, bool, error) {
-	repoPath, filename, err := makeChartPath(chartBasePath, source)
+	repoPath, filename, err := makeChartPath(constants.ChartBasePath, source)
 	if err != nil {
 		return "", false, err
 	}
@@ -181,8 +182,9 @@ func (install *installWorkflow) Deploy(kmd *installv1alpha1.KarmadaDeployment) e
 		return err
 	}
 
+	// TODO:
 	if len(kmd.Spec.ControlPlane.Namespace) == 0 {
-		kmd.Spec.ControlPlane.Namespace = KarmadaNamespace
+		kmd.Spec.ControlPlane.Namespace = kmd.Name
 	}
 
 	ns, err := install.destClient.CoreV1().Namespaces().Get(context.TODO(), kmd.Spec.ControlPlane.Namespace, metav1.GetOptions{})
@@ -197,9 +199,14 @@ func (install *installWorkflow) Deploy(kmd *installv1alpha1.KarmadaDeployment) e
 			return err
 		}
 	}
+
+	values, err := install.values.ValuesWithHostInstallMode()
+	if err != nil {
+		klog.Errorf("[helm-installer]:failed to compose chart values: %v", err)
+	}
 	releaseName := fmt.Sprintf("karmada-%s", kmd.Name)
 	install.release, err = install.helmClient.UpgradeFromPath(install.chartPath,
-		releaseName, install.values, helm.UpgradeOptions{
+		releaseName, values, helm.UpgradeOptions{
 			Namespace:         ns.Name,
 			Timeout:           DefaulTimeout,
 			Install:           true,
@@ -209,9 +216,34 @@ func (install *installWorkflow) Deploy(kmd *installv1alpha1.KarmadaDeployment) e
 			Atomic:            true,
 			DisableValidation: true,
 		})
-	if err != nil {
-		klog.Errorf("failed to install karmada chart for %s: %v", kmd.Name, err)
+	// TODO:
+	if err != nil && !strings.Contains(err.Error(), ReleaseExistErrMsg) {
+		klog.Errorf("[helm-installer]:failed to install karmada chart for %s: %v", kmd.Name, err)
 		return err
+	}
+
+	// deploy karmada component
+	if len(install.values.Components) > 0 {
+		values, err := install.values.ValuesWithComponentInstallMode()
+		if err != nil {
+			klog.Errorf("[helm-installer]:failed to compose chart values: %v", err)
+		}
+		crn := fmt.Sprintf("karmada-%s-component", kmd.Name)
+		install.componentRelease, err = install.helmClient.UpgradeFromPath(install.chartPath,
+			crn, values, helm.UpgradeOptions{
+				Namespace:         ns.Name,
+				Timeout:           DefaulTimeout,
+				Install:           true,
+				Force:             true,
+				SkipCRDs:          false,
+				Wait:              false,
+				Atomic:            true,
+				DisableValidation: true,
+			})
+		if err != nil {
+			klog.Errorf("[helm-installer]:failed to install karmada component for %s: %v", kmd.Name, err)
+			return err
+		}
 	}
 
 	return nil

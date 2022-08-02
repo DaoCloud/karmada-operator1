@@ -18,9 +18,9 @@ spec:
       - name: agent
         replicas: 2
         image: swr.ap-southeast-1.myhuaweicloud.com/karmada/karmada-agent:latest
-    components:
-      - search
-      - descheduler
+    # components:
+    #   - search
+    #   - descheduler
   images:
     karmadaRegistry: swr.ap-southeast-1.myhuaweicloud.com
     karmadaVersion: latest
