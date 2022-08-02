@@ -80,7 +80,7 @@ kubectl delete ns karmada-operator-system
 
 ## Demo
 
-![screenshot_gif](https://github.com/DaoCloud/karmada-operator/tree/main/docs/demo.gif)
+![screenshot_gif](https://github.com/DaoCloud/karmada-operator/blob/main/docs/demo.gif)
 
 
 ## Example
