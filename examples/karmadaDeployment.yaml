@@ -1,7 +1,7 @@
 apiVersion: install.karmada.io/v1alpha1
 kind: KarmadaDeployment
 metadata:
-  name: demo-kd
+  name: demo-kmd
 spec:
   mode: Helm
   controlPlane:
@@ -15,14 +15,15 @@ spec:
     modules:
       - name: scheduler
         replicas: 2
-      - name: agent
+        image: swr.ap-southeast-1.myhuaweicloud.com/karmada/karmada-scheduler:latest
+      - name: controllerManager
         replicas: 2
-        image: swr.ap-southeast-1.myhuaweicloud.com/karmada/karmada-agent:latest
+        image: swr.ap-southeast-1.myhuaweicloud.com/karmada/karmada-controller-manager:latest
     # components:
     #   - search
     #   - descheduler
   images:
     karmadaRegistry: swr.ap-southeast-1.myhuaweicloud.com
     karmadaVersion: latest
-    kubeResgistry: k8s.gcr.io
+    kubeResgistry: k8s-gcr.m.daocloud.io
     kubeVersion: "v1.24.2"
