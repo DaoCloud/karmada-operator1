@@ -20,14 +20,17 @@ import (
 	"context"
 	"fmt"
 	"io/ioutil"
+	"net"
 	"os"
 	"path/filepath"
 
 	"github.com/go-kit/kit/log"
+	"github.com/pkg/errors"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	clientset "k8s.io/client-go/kubernetes"
 	"k8s.io/client-go/rest"
 	clientcmd "k8s.io/client-go/tools/clientcmd"
+	clientcmdapi "k8s.io/client-go/tools/clientcmd/api"
 	"k8s.io/klog/v2"
 
 	installv1alpha1 "github.com/daocloud/karmada-operator/pkg/apis/install/v1alpha1"
@@ -134,6 +137,53 @@ func BuildClusterKubeconfig(kubeconfig []byte) (*rest.Config, error) {
 		return nil, err
 	}
 	return config.ClientConfig()
+}
+
+// GenerateKubeconfigByInCluster load serviceaccount info under
+// "/var/run/secrets/kubernetes.io/serviceaccount" and generate kubeconfig str.
+func GenerateKubeconfigInCluster() ([]byte, error) {
+	const (
+		tokenFile  = "/var/run/secrets/kubernetes.io/serviceaccount/token"
+		rootCAFile = "/var/run/secrets/kubernetes.io/serviceaccount/ca.crt"
+	)
+
+	host, port := os.Getenv("KUBERNETES_SERVICE_HOST"), os.Getenv("KUBERNETES_SERVICE_PORT")
+	if len(host) == 0 || len(port) == 0 {
+		return nil, errors.New("unable to load in-cluster configuration, KUBERNETES_SERVICE_HOST and KUBERNETES_SERVICE_PORT must be defined")
+	}
+
+	token, err := ioutil.ReadFile(tokenFile)
+	if err != nil {
+		return nil, err
+	}
+
+	caCert, err := ioutil.ReadFile(rootCAFile)
+	if err != nil {
+		return nil, err
+	}
+
+	config := clientcmdapi.Config{
+		Clusters: map[string]*clientcmdapi.Cluster{
+			"kubernetes": {
+				Server:                   "https://" + net.JoinHostPort(host, port),
+				CertificateAuthorityData: caCert,
+			},
+		},
+		Contexts: map[string]*clientcmdapi.Context{
+			"karmada-operator@kubernetes": {
+				Cluster:  "kubernetes",
+				AuthInfo: "karmada-operator",
+			},
+		},
+		AuthInfos: map[string]*clientcmdapi.AuthInfo{
+			"karmada-operator": {
+				Token: string(token),
+			},
+		},
+		CurrentContext: "karmada-operator@kubernetes",
+	}
+
+	return clientcmd.Write(config)
 }
 
 func GetRelease(helmClient helm.Client, kmd *installv1alpha1.KarmadaDeployment) (*helm.Release, error) {
