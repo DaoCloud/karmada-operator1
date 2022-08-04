@@ -6,10 +6,6 @@ spec:
   mode: Helm
   controlPlane:
     namespace: karmada-system
-    endPointCfg:
-      secretRef:
-        namespace: default
-        name: karmada-install
     etcd:
       storageMode: hostPath
     modules:

@@ -58,30 +58,36 @@ type HelmInstaller struct {
 }
 
 func NewHelmInstaller(kmd *installv1alpha1.KarmadaDeployment, kmdClient versioned.Interface, client clientset.Interface, chartResource *ChartResource) (*HelmInstaller, error) {
-	if kmd.Spec.ControlPlane.EndPointCfg == nil {
-		return nil, fmt.Errorf("failed load endpoint config")
-	}
 
-	// TODO: load kubeconfig from kubeconfig path
-	// is the secret data to kubeconfig file or caData and token.
-	secretRef := kmd.Spec.ControlPlane.EndPointCfg.SecretRef
-	secret, err := client.CoreV1().Secrets(secretRef.Namespace).Get(context.TODO(), secretRef.Name, metav1.GetOptions{})
-	if err != nil {
-		return nil, err
+	var kubeconfig []byte
+	var err error
+	config := &rest.Config{}
+	if kmd.Spec.ControlPlane.EndPointCfg == nil {
+		//use in cluster config
+		config, err = rest.InClusterConfig()
+		if err != nil {
+			return nil, fmt.Errorf("failed load in cluster config: %w", err)
+		}
+	} else {
+		// TODO: load kubeconfig from kubeconfig path
+		// is the secret data to kubeconfig file or caData and token.
+		secretRef := kmd.Spec.ControlPlane.EndPointCfg.SecretRef
+		secret, err := client.CoreV1().Secrets(secretRef.Namespace).Get(context.TODO(), secretRef.Name, metav1.GetOptions{})
+		if err != nil {
+			return nil, err
+		}
+		kubeconfig = secret.Data["kubeconfig"]
+		config, err = BuildClusterKubeconfig(kubeconfig)
+		if err != nil {
+			return nil, err
+		}
 	}
-	kubeconfig := secret.Data["kubeconfig"]
 	kubeconfigPath, err := WriteKubeconfig(kubeconfig, kmd.Name)
 	if err != nil {
-		klog.Errorf("[helm-installer]:failed to write the kubeconfig to directory %s for %s: %v:", kubeconfigPath, kmd.Name, err)
+		klog.Errorf("[helm-installer]:failed to write the kubeconfig to directory %s for %s: %w:", kubeconfigPath, kmd.Name, err)
 		return nil, err
 	}
-
 	klog.V(5).Info("[helm-installer]:the endpoint kubeconfig info: %s", string(kubeconfig))
-
-	config, err := BuildClusterKubeconfig(kubeconfig)
-	if err != nil {
-		return nil, err
-	}
 
 	destClient, err := clientset.NewForConfig(config)
 	if err != nil {
@@ -130,7 +136,7 @@ func BuildClusterKubeconfig(kubeconfig []byte) (*rest.Config, error) {
 	klog.V(5).Infof("kubeconfig data: %s", string(kubeconfig))
 	config, err := clientcmd.NewClientConfigFromBytes(kubeconfig)
 	if err != nil {
-		klog.Errorf("[helm-installer]:failed to build the target install cluster kubeconfig, please check the secret: %v:", err)
+		klog.Errorf("[helm-installer]:failed to build the target install cluster kubeconfig, please check the secret: %w:", err)
 		return nil, err
 	}
 	return config.ClientConfig()

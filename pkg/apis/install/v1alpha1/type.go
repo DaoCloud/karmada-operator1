@@ -112,10 +112,10 @@ type ControlPlaneCfg struct {
 	// +optional
 	Namespace string `json:"namespace,omitempty"`
 
-	// the install cluster access credentials, must be support. there are two
-	// way to connect cluster, one is by kubeconfig file path. two is restore
+	// the install cluster access credentials,if not specified,
+	// it will be installed in the cluster where the operator is located by default.
+	// There are two way to connect cluster, one is by kubeconfig file path. two is restore
 	// the credentials in the secret.
-	// +required
 	EndPointCfg *EndPointCfg `json:"endPointCfg,omitempty"`
 
 	// For karmada, two types etcd can be used:
