@@ -29,18 +29,22 @@ helm install karmada-operator -n karmada-operator-system --create-namespace --de
 
 First, add the Karmada-Operator chart repo to your local repository.
 ```console
-$ helm repo add karmada-operator-release https://release.daocloud.io/chartrepo/karmada-operator
+$ helm repo add karmada-operator https://release.daocloud.io/chartrepo/karmada-operator
 $ helm repo list
 NAME            URL
-karmada-operator-release   https://release.daocloud.io/chartrepo/karmada-operator
+karmada-operator   https://release.daocloud.io/chartrepo/karmada-operator
 ```
+
 With the repo added, available charts and versions can be viewed.
+
 ```console
-helm search repo karmada-operator-release
+helm search repo karmada-operator
 ```
+
 Install the chart and specify the version to install with the --version argument. Replace <x.x.x> with your desired version. Now only support --version=v0.0.1.
+
 ```console
-helm --namespace karmada-operator-system upgrade -i karmada-operator karmada-operator-release/karmada-operator --version=<x.x.x> --create-namespace
+helm --namespace karmada-operator-system upgrade -i karmada-operator karmada-operator/karmada-operator --version=<x.x.x> --create-namespace
 Release "karmada-operator" does not exist. Installing it now.
 NAME: karmada
 LAST DEPLOYED: Mon May 30 07:19:36 2022
@@ -81,6 +85,7 @@ kubectl delete ns karmada-operator-system
 ## Example
 ### 1. Install controller manager
 Edited values.yaml
+
 ```YAML
 controllerManager:
   ## @param controllerManager.labels
@@ -138,6 +143,7 @@ controllerManager:
   ## @param controllerManager.localKubeconfig
   localKubeconfig: true
 ```
+
 ## Configuration
 
 ### Global parameters
