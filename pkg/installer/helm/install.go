@@ -20,7 +20,6 @@ import (
 	"context"
 	"errors"
 	"fmt"
-	"io/ioutil"
 	"net/url"
 	"os"
 	"path/filepath"
@@ -32,7 +31,9 @@ import (
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	labels "k8s.io/apimachinery/pkg/labels"
 	"k8s.io/apimachinery/pkg/runtime"
+	"k8s.io/apimachinery/pkg/version"
 	"k8s.io/apimachinery/pkg/watch"
+	"k8s.io/client-go/kubernetes"
 	clientset "k8s.io/client-go/kubernetes"
 	"k8s.io/client-go/tools/cache"
 	"k8s.io/client-go/tools/clientcmd"
@@ -44,6 +45,7 @@ import (
 	"github.com/daocloud/karmada-operator/pkg/generated/clientset/versioned"
 	helm "github.com/daocloud/karmada-operator/pkg/helm"
 	"github.com/daocloud/karmada-operator/pkg/status"
+	"github.com/daocloud/karmada-operator/pkg/utils"
 )
 
 var (
@@ -69,11 +71,8 @@ type installWorkflow struct {
 	chartResource *ChartResource
 }
 
-func NewInstallWorkflow(destHost string,
-	helmClient helm.Client,
-	kmdClient versioned.Interface,
-	destClient clientset.Interface,
-	client clientset.Interface,
+func NewInstallWorkflow(destHost string, helmClient helm.Client, kmdClient versioned.Interface,
+	destClient clientset.Interface, client clientset.Interface,
 	chartResource *ChartResource) *installWorkflow {
 
 	return &installWorkflow{
@@ -114,25 +113,36 @@ func (install *installWorkflow) Install(kmd *installv1alpha1.KarmadaDeployment) 
 func (install *installWorkflow) Preflight(kmd *installv1alpha1.KarmadaDeployment) error {
 	klog.Infof("[helm-installer]:start proflight phase for %s", kmd.Name)
 
+	// TODO: complete kmd.
+	if len(kmd.Spec.ControlPlane.Namespace) == 0 {
+		kmd.Spec.ControlPlane.Namespace = kmd.Name
+	}
+
 	var err error
 	if err = status.SetStatusPhase(install.kmdClient, kmd, installv1alpha1.PreflightPhase); err != nil {
 		return err
 	}
 
-	install.chartPath, _, err = FetchChart(install.helmClient, install.chartResource)
+	install.chartPath, _, err = fetchChart(install.helmClient, install.chartResource)
 	if err != nil {
 		klog.Errorf("[helm-installer]:failed to fetch karmada chart pkg: %v", err)
 		return err
 	}
 
 	if install.values == nil {
-		install.values = Compose(kmd)
-	}
+		values := Compose(kmd)
+		IPs, err := utils.GetKubeMasterIP(install.client)
+		if err != nil {
+			klog.Errorf("[helm-installer]:failed get ips of kubenetes master node, err:", err)
+		}
 
+		SetDefaultValues(values, kmd.Spec.ControlPlane.Namespace, IPs)
+		install.values = values
+	}
 	return nil
 }
 
-func FetchChart(helmClient helm.Client, source *ChartResource) (string, bool, error) {
+func fetchChart(helmClient helm.Client, source *ChartResource) (string, bool, error) {
 	repoPath, filename, err := makeChartPath(constants.ChartBasePath, source)
 	if err != nil {
 		return "", false, err
@@ -182,11 +192,6 @@ func (install *installWorkflow) Deploy(kmd *installv1alpha1.KarmadaDeployment) e
 		return err
 	}
 
-	// TODO:
-	if len(kmd.Spec.ControlPlane.Namespace) == 0 {
-		kmd.Spec.ControlPlane.Namespace = kmd.Name
-	}
-
 	ns, err := install.destClient.CoreV1().Namespaces().Get(context.TODO(), kmd.Spec.ControlPlane.Namespace, metav1.GetOptions{})
 	if err != nil {
 		if !apierrors.IsNotFound(err) {
@@ -216,12 +221,13 @@ func (install *installWorkflow) Deploy(kmd *installv1alpha1.KarmadaDeployment) e
 			Atomic:            true,
 			DisableValidation: true,
 		})
-	// TODO:
+
 	if err != nil && !strings.Contains(err.Error(), ReleaseExistErrMsg) {
 		klog.Errorf("[helm-installer]:failed to install karmada chart for %s: %v", kmd.Name, err)
 		return err
 	}
 
+	// TODO: if community supports installing components together, it will not need install again.
 	// deploy karmada component
 	if len(install.values.Components) > 0 {
 		values, err := install.values.ValuesWithComponentInstallMode()
@@ -264,7 +270,7 @@ func (install *installWorkflow) Wait(kmd *installv1alpha1.KarmadaDeployment) err
 	karmadaApiserver := fmt.Sprintf("%s-karmada-apiserver", release.Name)
 	for _, m := range []string{karmadaApiserver, "etcd"} {
 		if _, err := waitForPodReady(install.client, release.Namespace, m); err != nil {
-			klog.Errorf("failed to wait %s to ready: %v", m, err)
+			klog.Errorf("[helm-installer]:failed to wait %s to ready: %v", m, err)
 			return err
 		}
 	}
@@ -308,11 +314,9 @@ func waitForPodReady(client clientset.Interface, namespace, deploymentName strin
 	if err != nil {
 		return nil, fmt.Errorf("timeout waiting for mudile %s to ready: %v", deploymentName, err)
 	}
-
 	if event == nil {
 		return nil, nil
 	}
-
 	if pod, ok := event.Object.(*corev1.Pod); ok {
 		return pod, nil
 	}
@@ -331,36 +335,27 @@ func (install *installWorkflow) Completed(kmd *installv1alpha1.KarmadaDeployment
 		return err
 	}
 
-	// TODO: expose the karmada service
-	// client, err := BuildClientsetFormKubeconfig(secret.Data["kubeconfig"])
-	// if err != nil {
-	// 	return err
-	// }
-
-	// version, err := client.ServerVersion()
-	// if err != nil {
-	// 	return err
-	// }
-	// klog.V(2).Info("Success install karmada release, version:", version.String())
-
-	// restore the karmda kubeconfig to secret, and set the secret info to kmd status.
-	secretCopy := &corev1.Secret{
-		ObjectMeta: metav1.ObjectMeta{
-			GenerateName: fmt.Sprintf("%s-", secret.Name),
-			Namespace:    kmd.Namespace,
-		},
-		Data: secret.Data,
-		Type: secret.Type,
+	// expose the karmada service
+	configByte, exist := secret.Data["kubeconfig"]
+	if !exist {
+		return fmt.Errorf("failed to load internal kubeconfig from secret %s", secret.Name)
 	}
 
-	currentNamespace := GetCurrentNSOrDefault()
-	if secretCopy, err = install.client.CoreV1().Secrets(currentNamespace).Create(context.TODO(), secretCopy, metav1.CreateOptions{}); err != nil {
-		if apierrors.IsAlreadyExists(err) {
-			secretCopy, err = install.client.CoreV1().Secrets(kmd.Namespace).Update(context.TODO(), secretCopy, metav1.UpdateOptions{})
-			if err != nil {
-				return err
-			}
-		}
+	externalConfig, err := install.BuildExtetnalKubeconfig(configByte)
+	if err != nil {
+		return err
+	}
+
+	version, err := GetKarmadaVersion(externalConfig)
+	if err != nil {
+		klog.Errorf("[helm-installer]:failed get karmada version, err: %v", err)
+	}
+	klog.Info("[helm-installer]:success install karmada release, version:", version.String())
+
+	secretCopy, err := CreateSecretForExternalKubeconfig(install.client, externalConfig, kmd)
+	if err != nil {
+		klog.Errorf("[helm-installer]:failed create secret for external kubeconfig, err:", err)
+		return err
 	}
 
 	// The flow is completed, set the controlPlaneReady.
@@ -371,15 +366,6 @@ func (install *installWorkflow) Completed(kmd *installv1alpha1.KarmadaDeployment
 
 	kmd.Status.ControlPlaneReady = true
 	return status.SetStatusPhase(install.kmdClient, kmd, installv1alpha1.ControlPlaneReadyPhase)
-}
-
-func BuildClientsetFormKubeconfig(kubeconfig []byte) (*clientset.Clientset, error) {
-	config, err := clientcmd.RESTConfigFromKubeConfig(kubeconfig)
-	if err != nil {
-		return nil, err
-	}
-
-	return clientset.NewForConfig(config)
 }
 
 func (install *installWorkflow) GetRelease(kmd *installv1alpha1.KarmadaDeployment) (*helm.Release, error) {
@@ -397,24 +383,59 @@ func (install *installWorkflow) GetRelease(kmd *installv1alpha1.KarmadaDeploymen
 	return install.release, nil
 }
 
-// GetCurrentNS fetch namespace the current pod running in. reference to client-go (config *inClusterClientConfig) Namespace() (string, bool, error).
-func GetCurrentNS() (string, error) {
-	if ns := os.Getenv("POD_NAMESPACE"); ns != "" {
-		return ns, nil
+func (install *installWorkflow) BuildExtetnalKubeconfig(internalConfig []byte) ([]byte, error) {
+	clusterName := fmt.Sprintf("%s-apiserver", install.release.Name)
+	config, err := clientcmd.Load(internalConfig)
+	if err != nil {
+		return nil, err
 	}
 
-	if data, err := ioutil.ReadFile("/var/run/secrets/kubernetes.io/serviceaccount/namespace"); err == nil {
-		if ns := strings.TrimSpace(string(data)); len(ns) > 0 {
-			return ns, nil
-		}
+	materIP, err := utils.GetKubeMasterIP(install.client)
+	if err != nil {
+		return nil, err
 	}
-	return "", fmt.Errorf("can not get namespace where pods running in")
+
+	serverURL := fmt.Sprintf("https://%s:%v", materIP[0], constants.KarmadaAPIServerNodePort)
+	if cluster, exist := config.Clusters[clusterName]; exist {
+		cluster.Server = serverURL
+	}
+
+	return clientcmd.Write(*config)
 }
 
-func GetCurrentNSOrDefault() string {
-	ns, err := GetCurrentNS()
+func GetKarmadaVersion(kubeconfig []byte) (*version.Info, error) {
+	client, err := utils.NewClientForKubeconfig(kubeconfig)
 	if err != nil {
-		return "default"
+		return nil, err
 	}
-	return ns
+
+	return client.ServerVersion()
+}
+
+func CreateSecretForExternalKubeconfig(client kubernetes.Interface, data []byte, kmd *installv1alpha1.KarmadaDeployment) (*corev1.Secret, error) {
+	// restore the karmda kubeconfig to secret, and set the secret info to kmd status.
+	secret := &corev1.Secret{
+		ObjectMeta: metav1.ObjectMeta{
+			GenerateName: fmt.Sprintf("%s-kubeconfig", kmd.Name),
+			Namespace:    kmd.Namespace,
+		},
+		Data: map[string][]byte{
+			"kubeconfig": data,
+		},
+		Type: corev1.SecretTypeOpaque,
+	}
+
+	// resote the secret in current namespace
+	currentNamespace := utils.GetCurrentNSOrDefault()
+	secret, err := client.CoreV1().Secrets(currentNamespace).Create(context.TODO(), secret, metav1.CreateOptions{})
+	if err != nil {
+		if !apierrors.IsAlreadyExists(err) {
+			return nil, err
+		}
+		secret, err = client.CoreV1().Secrets(kmd.Namespace).Update(context.TODO(), secret, metav1.UpdateOptions{})
+		if err != nil {
+			return nil, err
+		}
+	}
+	return secret, nil
 }

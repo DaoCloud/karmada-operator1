@@ -1,11 +1,15 @@
 package helm
 
 import (
+	// "fmt"
+	"fmt"
 	"strings"
 
 	"gopkg.in/yaml.v2"
+	corev1 "k8s.io/api/core/v1"
 
 	installv1alpha1 "github.com/daocloud/karmada-operator/pkg/apis/install/v1alpha1"
+	"github.com/daocloud/karmada-operator/pkg/constants"
 )
 
 var (
@@ -19,22 +23,38 @@ var (
 		"controllerManager", "agent", "aggregatedApiServer"}
 )
 
+type InstallMode string
+
 const (
-	HostInstallMode      = "host"
-	AgentInstallMode     = "agent"
-	ComponentInstallMode = "component"
+	HostInstallMode      InstallMode = "host"
+	AgentInstallMode     InstallMode = "agent"
+	ComponentInstallMode InstallMode = "component"
 )
 
 type Values struct {
-	InstallMode string                      `yaml:"installMode,omitempty"`
+	InstallMode InstallMode                 `yaml:"installMode,omitempty"`
+	Cert        *Cert                       `yaml:"certs,omitempty"`
 	Components  []installv1alpha1.Component `yaml:"components,omitempty"`
 	ETCD        ETCD                        `yaml:"etcd,omitempty"`
 	Modules     map[string]Module           `yaml:",inline"`
 }
 
+type Cert struct {
+	Mode string    `yaml:"mode,omitempty"`
+	Auto *AutoCert `yaml:"auto,omitempty"`
+}
+
+type AutoCert struct {
+	Expiry string   `yaml:"expiry,omitempty"`
+	Hosts  []string `yaml:"hosts,omitempty"`
+}
+
 type Module struct {
-	ReplicaCount *int32 `yaml:"replicaCount,omitempty"`
-	Image        *Image `yaml:"image,omitempty"`
+	ReplicaCount *int32             `yaml:"replicaCount,omitempty"`
+	Image        *Image             `yaml:"image,omitempty"`
+	HostNetwork  *bool              `yaml:"hostNetwork,omitempty"`
+	ServiceType  corev1.ServiceType `yaml:"serviceType,omitempty"`
+	NodePort     int32              `yaml:"nodePort,omitempty"`
 }
 
 type Image struct {
@@ -84,38 +104,38 @@ func Compose(kd *installv1alpha1.KarmadaDeployment) *Values {
 	return Convert_KarmadaDeployment_To_Values(kd)
 }
 
-func Convert_KarmadaDeployment_To_Values(kd *installv1alpha1.KarmadaDeployment) *Values {
+func Convert_KarmadaDeployment_To_Values(kmd *installv1alpha1.KarmadaDeployment) *Values {
 	values := &Values{}
-	if kd == nil {
+	if kmd == nil {
 		return values
 	}
 
 	// Convert ETCD
-	if kd.Spec.ControlPlane.ETCD != nil {
+	if kmd.Spec.ControlPlane.ETCD != nil {
 		etcd := ETCD{
 			Internal: Internal{
-				StorageType: kd.Spec.ControlPlane.ETCD.StorageMode,
+				StorageType: kmd.Spec.ControlPlane.ETCD.StorageMode,
 			},
 		}
 
-		if len(kd.Spec.ControlPlane.ETCD.StorageClass) > 0 || len(kd.Spec.ControlPlane.ETCD.Size) > 0 {
+		if len(kmd.Spec.ControlPlane.ETCD.StorageClass) > 0 || len(kmd.Spec.ControlPlane.ETCD.Size) > 0 {
 			etcd.Internal.PVC = PVC{
-				StorageClass: kd.Spec.ControlPlane.ETCD.StorageClass,
-				Size:         kd.Spec.ControlPlane.ETCD.Size,
+				StorageClass: kmd.Spec.ControlPlane.ETCD.StorageClass,
+				Size:         kmd.Spec.ControlPlane.ETCD.Size,
 			}
 		}
 		values.ETCD = etcd
 	}
 
 	modeImages := make(map[string]*Image)
-	if kd.Spec.Images != nil {
+	if kmd.Spec.Images != nil {
 		for _, k := range Karmada {
 			image := &Image{}
-			if len(kd.Spec.Images.KarmadaRegistry) > 0 {
-				image.Registry = kd.Spec.Images.KarmadaRegistry
+			if len(kmd.Spec.Images.KarmadaRegistry) > 0 {
+				image.Registry = kmd.Spec.Images.KarmadaRegistry
 			}
-			if len(kd.Spec.Images.KarmadaVersion) > 0 {
-				image.Tag = kd.Spec.Images.KarmadaVersion
+			if len(kmd.Spec.Images.KarmadaVersion) > 0 {
+				image.Tag = kmd.Spec.Images.KarmadaVersion
 			}
 			if !image.isEmpty() {
 				modeImages[k] = image
@@ -124,13 +144,13 @@ func Convert_KarmadaDeployment_To_Values(kd *installv1alpha1.KarmadaDeployment) 
 
 		for _, k := range Kubernates {
 			image := &Image{}
-			if len(kd.Spec.Images.KubeResgistry) > 0 {
-				image.Registry = kd.Spec.Images.KubeResgistry
+			if len(kmd.Spec.Images.KubeResgistry) > 0 {
+				image.Registry = kmd.Spec.Images.KubeResgistry
 			}
 
 			// etcd version is different with kubernetes version.
-			if k != "etcd" && len(kd.Spec.Images.KubeVersion) > 0 {
-				image.Tag = kd.Spec.Images.KubeVersion
+			if k != "etcd" && len(kmd.Spec.Images.KubeVersion) > 0 {
+				image.Tag = kmd.Spec.Images.KubeVersion
 			}
 			if !image.isEmpty() {
 				modeImages[k] = image
@@ -142,7 +162,7 @@ func Convert_KarmadaDeployment_To_Values(kd *installv1alpha1.KarmadaDeployment) 
 	// replicas must be one. the hostNetwork is conflict.
 	// Parse module image and replicas values.
 	values.Modules = make(map[string]Module)
-	for _, module := range kd.Spec.ControlPlane.Modules {
+	for _, module := range kmd.Spec.ControlPlane.Modules {
 		name := string(module.Name)
 		// TODO: if component is disabled, skip the loop.
 
@@ -192,10 +212,42 @@ func Convert_KarmadaDeployment_To_Values(kd *installv1alpha1.KarmadaDeployment) 
 	}
 
 	// TODO: it's not work.
-	if len(kd.Spec.ControlPlane.Components) > 0 {
+	if len(kmd.Spec.ControlPlane.Components) > 0 {
 		// values.InstallMode = ComponentInstallMode
-		values.Components = kd.Spec.ControlPlane.Components
+		values.Components = kmd.Spec.ControlPlane.Components
 	}
 
 	return values
+}
+
+// setDefaultValues set apiserver default values
+// set default external ip
+// the certificate expires in 10 years
+func SetDefaultValues(v *Values, releaseNamespace string, externalHosts []string) {
+	apiserver := Module{}
+	if module, exist := v.Modules["apiServer"]; exist {
+		apiserver = module
+	}
+
+	apiserver.NodePort = constants.KarmadaAPIServerNodePort
+	apiserver.ServiceType = corev1.ServiceTypeNodePort
+	v.Modules["apiServer"] = apiserver
+
+	hosts := []string{
+		"kubernetes.default.svc",
+		fmt.Sprintf("*.etcd.%s.svc.cluster.local", releaseNamespace),
+		fmt.Sprintf("*.%s.svc.cluster.local", releaseNamespace),
+		fmt.Sprintf("*.%s.svc", releaseNamespace),
+		"localhost",
+		"127.0.0.1",
+	}
+	hosts = append(hosts, externalHosts...)
+
+	v.Cert = &Cert{
+		Mode: "auto",
+		Auto: &AutoCert{
+			Hosts:  hosts,
+			Expiry: "87600h",
+		},
+	}
 }
