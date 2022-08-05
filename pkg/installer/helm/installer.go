@@ -58,10 +58,11 @@ type HelmInstaller struct {
 }
 
 func NewHelmInstaller(kmd *installv1alpha1.KarmadaDeployment, kmdClient versioned.Interface, client clientset.Interface, chartResource *ChartResource) (*HelmInstaller, error) {
-
-	var kubeconfig []byte
-	var err error
-	config := &rest.Config{}
+	var (
+		kubeconfig []byte
+		err        error
+		config     *rest.Config
+	)
 	if kmd.Spec.ControlPlane.EndPointCfg == nil {
 		//use in cluster config
 		config, err = rest.InClusterConfig()

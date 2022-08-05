@@ -5,6 +5,7 @@ go 1.18
 require (
 	github.com/go-kit/kit v0.9.0
 	github.com/google/go-cmp v0.5.8
+	github.com/karmada-io/api v1.2.0
 	github.com/ncabatoff/go-seq v0.0.0-20180805175032-b08ef85ed833
 	github.com/pkg/errors v0.9.1
 	github.com/spf13/cobra v1.4.0
