@@ -24,7 +24,8 @@ import (
 	"k8s.io/apimachinery/pkg/api/equality"
 	apierrors "k8s.io/apimachinery/pkg/api/errors"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
-	"k8s.io/client-go/kubernetes"
+	"k8s.io/apimachinery/pkg/util/wait"
+	clientset "k8s.io/client-go/kubernetes"
 	"k8s.io/client-go/tools/cache"
 	"k8s.io/client-go/util/workqueue"
 	"k8s.io/klog/v2"
@@ -44,24 +45,31 @@ const (
 )
 
 type Controller struct {
-	runLock       sync.Mutex
-	stopCh        <-chan struct{}
-	clientset     kubernetes.Interface
-	kmdClient     versioned.Interface
-	queue         workqueue.RateLimitingInterface
-	installLister installliter.KarmadaDeploymentLister
-	factory       *factory.InstallerFactory
+	runLock sync.Mutex
+	stopCh  <-chan struct{}
+
+	clientset clientset.Interface
+	kmdClient versioned.Interface
+	queue     workqueue.RateLimitingInterface
+
+	factory *factory.InstallerFactory
+
+	installStore installliter.KarmadaDeploymentLister
+	// instalStoreSynced returns true if the kmd store has been synced at least once.
+	// Added as a member to the struct to allow injection for testing.
+	instalStoreSynced cache.InformerSynced
 }
 
 func NewController(kmdClient versioned.Interface,
-	client kubernetes.Interface,
+	client clientset.Interface,
 	chartResource *helminstaller.ChartResource,
 	karmadaDeploymentInformer installinformers.KarmadaDeploymentInformer) *Controller {
 
 	controller := &Controller{
-		kmdClient:     kmdClient,
-		clientset:     client,
-		installLister: karmadaDeploymentInformer.Lister(),
+		kmdClient:         kmdClient,
+		clientset:         client,
+		installStore:      karmadaDeploymentInformer.Lister(),
+		instalStoreSynced: karmadaDeploymentInformer.Informer().HasSynced,
 		queue: workqueue.NewRateLimitingQueue(
 			workqueue.NewItemExponentialFailureRateLimiter(2*time.Second, 5*time.Second),
 		),
@@ -71,21 +79,22 @@ func NewController(kmdClient versioned.Interface,
 
 	karmadaDeploymentInformer.Informer().AddEventHandler(
 		cache.ResourceEventHandlerFuncs{
-			AddFunc: controller.enqueue,
-			UpdateFunc: func(older, newer interface{}) {
-				oldObj := older.(*installv1alpha1.KarmadaDeployment)
-				newObj := newer.(*installv1alpha1.KarmadaDeployment)
-				if newObj.DeletionTimestamp.IsZero() && equality.Semantic.DeepEqual(oldObj.Spec, newObj.Spec) {
-					return
-				}
-				controller.enqueue(newer)
-			},
-
+			AddFunc:    controller.enqueue,
+			UpdateFunc: controller.UpdateEvent,
 			DeleteFunc: controller.enqueue,
 		},
 	)
 
 	return controller
+}
+
+func (c *Controller) UpdateEvent(older, newer interface{}) {
+	oldObj := older.(*installv1alpha1.KarmadaDeployment)
+	newObj := newer.(*installv1alpha1.KarmadaDeployment)
+	if newObj.DeletionTimestamp.IsZero() && equality.Semantic.DeepEqual(oldObj.Spec, newObj.Spec) {
+		return
+	}
+	c.enqueue(newer)
 }
 
 func (c *Controller) enqueue(obj interface{}) {
@@ -100,7 +109,15 @@ func (c *Controller) Run(workers int, stopCh <-chan struct{}) {
 	c.runLock.Lock()
 	defer c.runLock.Unlock()
 
+	klog.Infof("Start karmadaDeployment operator")
+	defer klog.Infof("Shutting down karmadaDeployment operator")
+
 	if c.stopCh != nil {
+		return
+	}
+	c.stopCh = stopCh
+
+	if !cache.WaitForCacheSync(stopCh, c.instalStoreSynced) {
 		return
 	}
 
@@ -111,7 +128,7 @@ func (c *Controller) Run(workers int, stopCh <-chan struct{}) {
 		waitGroup.Add(1)
 		go func() {
 			defer waitGroup.Done()
-			c.worker()
+			wait.Until(c.worker, time.Second, c.stopCh)
 		}()
 	}
 
@@ -131,44 +148,50 @@ func (c *Controller) worker() {
 	}
 }
 
-func (c *Controller) processNext() (continued bool) {
+func (c *Controller) processNext() bool {
 	key, shutdown := c.queue.Get()
 	if shutdown {
 		return false
 	}
 	defer c.queue.Done(key)
-	continued = true
 
-	// KarmadaDeployment is cluster scope, key == name
-	_, name, err := cache.SplitMetaNamespaceKey(key.(string))
-	if err != nil {
-		klog.ErrorS(err, "failed to split karmadaDeployment key", "key", key)
-		return
-	}
-
-	kd, err := c.installLister.Get(name)
-	if err != nil {
-		if !apierrors.IsNotFound(err) {
-			klog.ErrorS(err, "failed to get karmadaDeployment from lister", "policy", name)
-			return
-		}
-		return
-	}
-	if err := c.reconcile(kd); err != nil {
+	name := key.(string)
+	if err := c.syncHandler(name); err != nil {
 		klog.ErrorS(err, "Failed to reconcile karmadaDeployment", "cluster", name, "num requeues", c.queue.NumRequeues(key))
 
 		if c.queue.NumRequeues(key) < maxClusterSynchroRetry {
 			c.queue.AddRateLimited(key)
-			return
+			return true
 		}
 		klog.V(2).Infof("Dropping karmadaDeployment %q out of the queue: %v", key, err)
 	}
 
 	c.queue.Forget(key)
-	return
+	return true
 }
 
-func (c *Controller) reconcile(kmd *installv1alpha1.KarmadaDeployment) (err error) {
+func (c *Controller) syncHandler(key string) (err error) {
+	startTime := time.Now()
+	defer func() {
+		klog.V(4).Infof("Finished syncing %q (%v)", key, time.Since(startTime))
+	}()
+
+	// KarmadaDeployment is cluster scope, key == name
+	_, name, err := cache.SplitMetaNamespaceKey(key)
+	if err != nil {
+		klog.ErrorS(err, "failed to split karmadaDeployment key", "key", key)
+		return err
+	}
+
+	kmd, err := c.installStore.Get(name)
+	if err != nil {
+		if !apierrors.IsNotFound(err) {
+			klog.ErrorS(err, "failed to get karmadaDeployment from lister", "policy", name)
+			return err
+		}
+		return err
+	}
+
 	if !kmd.DeletionTimestamp.IsZero() {
 		klog.InfoS("remove karmadaDeployment", "karmadaDeployment", kmd.Name)
 
@@ -176,16 +199,14 @@ func (c *Controller) reconcile(kmd *installv1alpha1.KarmadaDeployment) (err erro
 			return err
 		}
 
-		if controllerutil.ContainsFinalizer(kmd.DeepCopy(), ControllerFinalizer) {
-			_ = controllerutil.RemoveFinalizer(kmd, ControllerFinalizer)
-			if _, err := c.kmdClient.InstallV1alpha1().KarmadaDeployments().Update(context.TODO(), kmd, metav1.UpdateOptions{}); err != nil {
-				return err
-			}
+		controllerutil.ContainsFinalizer(kmd.DeepCopy(), ControllerFinalizer)
+		_ = controllerutil.RemoveFinalizer(kmd, ControllerFinalizer)
+		if _, err := c.kmdClient.InstallV1alpha1().KarmadaDeployments().Update(context.TODO(), kmd, metav1.UpdateOptions{}); err != nil {
+			return err
 		}
 
 		return nil
 	}
-
 	// ensure finalizer
 	if !controllerutil.ContainsFinalizer(kmd, ControllerFinalizer) {
 		_ = controllerutil.AddFinalizer(kmd, ControllerFinalizer)

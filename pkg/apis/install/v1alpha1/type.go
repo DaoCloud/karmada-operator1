@@ -19,8 +19,6 @@ package v1alpha1
 import (
 	corev1 "k8s.io/api/core/v1"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
-
-	clusterv1alpha1 "github.com/karmada-io/api/cluster/v1alpha1"
 )
 
 // TOOD: kubebuilder:printcolumn:name="Status",type=string,JSONPath=".status.conditions[?(@.type == 'ControlPlaneReady')].reason",description=""
@@ -263,12 +261,12 @@ type KarmadaResourceSummary struct {
 	// ResourceTotalNum represent the total number of distributed resource on karmada control plane.
 	// e.g: service, ingress, pvc, secret.
 	// +optional
-	ResourceTotalNum map[string]int `json:"resourceTotalNum,omitempty"`
+	ResourceTotalNum map[string]int32 `json:"resourceTotalNum,omitempty"`
 
 	// PolicyTotalNum represent the total number of policy resource.
 	// e.g: PropagationPolicy, OverridePolicy.
 	// +optional
-	PolicyTotalNum map[string]int `json:"policyTotalNum,omitempty"`
+	PolicyTotalNum map[string]int32 `json:"policyTotalNum,omitempty"`
 
 	// ClusterSummary represents the each member cluster summary.
 	// +optional
@@ -276,21 +274,29 @@ type KarmadaResourceSummary struct {
 
 	// NodeSummary represents all nodes summary of all clusters.
 	// +optional
-	NodeSummary *Statistic `json:"nodeSummary,omitempty"`
-
-	// WorkLoadSummary represents all workLoads summary of all clusters.
-	// e.g: deployment, statefulset.
-	// +optional
-	WorkLoadSummary map[string]*Statistic `json:"workLoadSummary,omitempty"`
+	NodeSummary *NodeSummary `json:"nodeSummary,omitempty"`
 
 	// ResourceSummary represents the summary of resources in all of the member cluster.
 	// +optional
 	ResourceSummary *ResourceSummary `json:"resourceSummary,omitempty"`
+
+	// WorkLoadSummary represents all workLoads summary of all clusters.
+	// e.g: deployment, statefulset.
+	// +optional
+	WorkLoadSummary map[string]NumStatistic `json:"workLoadSummary,omitempty"`
+}
+
+type NodeSummary struct {
+	NumStatistic `json:",inline"`
+
+	// ClusterNodeSummary is node summary of each cluster.
+	// +optional
+	ClusterNodeSummary map[string]NumStatistic `json:"clusterNodeSummary,omitempty"`
 }
 
 // ClusterSummary specifies all member cluster state and each member cluster conditions.
 type ClusterSummary struct {
-	*Statistic `json:",inline"`
+	NumStatistic `json:",inline"`
 
 	// ClusterConditions is conditions of each cluster.
 	// +optional
@@ -299,6 +305,14 @@ type ClusterSummary struct {
 
 // ClusterSummary specifies all member cluster state and conditions.
 type ResourceSummary struct {
+	ResourceStatistic `json:",inline"`
+
+	// ClusterResource represents the resources of each cluster.
+	// +optional
+	ClusterResource map[string]ResourceStatistic `json:"clusterResource,omitempty"`
+}
+
+type ResourceStatistic struct {
 	// Allocatable represents the resources of all clusters that are available for scheduling.
 	// Total amount of allocatable resources on all nodes of all clusters.
 	// +optional
@@ -313,30 +327,26 @@ type ResourceSummary struct {
 	// Total amount of required resources of all Pods of all clusters that have been scheduled to nodes.
 	// +optional
 	Allocated corev1.ResourceList `json:"allocated,omitempty"`
-
-	// ClusterResource represents the resources of each cluster.
-	// +optional
-	ClusterResource map[string]clusterv1alpha1.ResourceSummary `json:"clusterResource,omitempty"`
 }
 
-type Statistic struct {
+type NumStatistic struct {
 	// TotalNum represents the total number of resource of member cluster.
 	// +optional
-	TotalNum int `json:"totalNum,omitempty"`
+	TotalNum int32 `json:"totalNum,omitempty"`
 
 	// ReadyNum represents the resource in ready state.
 	// +optional
-	ReadyNum int `json:"readyNum,omitempty"`
+	ReadyNum int32 `json:"readyNum,omitempty"`
 }
 
 // WorkloadSummary represents the summary of workload state in a specific cluster.
 type WorkloadSummary struct {
 	// Statistic represent  workload total number and ready member of all of member cluster.
-	*Statistic
+	NumStatistic
 
 	// ClusterWorkload represent cluster
 	// +optional
-	ClusterWorkload map[string]*Statistic `json:"clusterWorkload,omitempty"`
+	ClusterWorkload map[string]NumStatistic `json:"clusterWorkload,omitempty"`
 }
 
 // +enum
