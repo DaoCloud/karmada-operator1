@@ -19,6 +19,8 @@ package v1alpha1
 import (
 	corev1 "k8s.io/api/core/v1"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
+
+	clusterv1alpha1 "github.com/karmada-io/api/cluster/v1alpha1"
 )
 
 // TOOD: kubebuilder:printcolumn:name="Status",type=string,JSONPath=".status.conditions[?(@.type == 'ControlPlaneReady')].reason",description=""
@@ -242,12 +244,99 @@ type KarmadaDeploymentStatus struct {
 	// after the karmada installed, restore the kubeconfig to secret.
 	SecretRef *LocalSecretReference `json:"secretRef,omitempty"`
 
-	// The generation observed by the KarmadaDeployment controller.
-	// +optional
-	ObservedGeneration int64 `json:"observedGeneration,omitempty"`
+	// KarmadaVersion represente the karmada verison.
+	KarmadaVersion string `json:"karmadaVersion,omitempty"`
 
-	// Represents the latest available observations of a karmadaDeployment's current state.
+	// KubernetesVersion represente the karmada-apiserver version.
+	KubernetesVersion string `json:"kubernetesVersion,omitempty"`
+
+	// MemberClusterSummary gather all of member cluster summary information.
+	Summary *KarmadaResourceSummary `json:"summary,omitempty"`
+
+	// Conditions represents the latest available observations of a karmadaDeployment's current state.
 	Conditions []Condition `json:"conditions,omitempty"`
+}
+
+// KarmadaResourceSummary specifies some resource totals for the karmada control plane
+// and some resource totals for the member cluster that we want to collect.
+type KarmadaResourceSummary struct {
+	// ResourceTotalNum represent the total number of distributed resource on karmada control plane.
+	// e.g: service, ingress, pvc, secret.
+	// +optional
+	ResourceTotalNum map[string]int `json:"resourceTotalNum,omitempty"`
+
+	// PolicyTotalNum represent the total number of policy resource.
+	// e.g: PropagationPolicy, OverridePolicy.
+	// +optional
+	PolicyTotalNum map[string]int `json:"policyTotalNum,omitempty"`
+
+	// ClusterSummary represents the each member cluster summary.
+	// +optional
+	ClusterSummary *ClusterSummary `json:"clusterSummary,omitempty"`
+
+	// NodeSummary represents all nodes summary of all clusters.
+	// +optional
+	NodeSummary *Statistic `json:"nodeSummary,omitempty"`
+
+	// WorkLoadSummary represents all workLoads summary of all clusters.
+	// e.g: deployment, statefulset.
+	// +optional
+	WorkLoadSummary map[string]*Statistic `json:"workLoadSummary,omitempty"`
+
+	// ResourceSummary represents the summary of resources in all of the member cluster.
+	// +optional
+	ResourceSummary *ResourceSummary `json:"resourceSummary,omitempty"`
+}
+
+// ClusterSummary specifies all member cluster state and each member cluster conditions.
+type ClusterSummary struct {
+	*Statistic `json:",inline"`
+
+	// ClusterConditions is conditions of each cluster.
+	// +optional
+	ClusterConditions map[string][]metav1.Condition `json:"clusterConditions,omitempty"`
+}
+
+// ClusterSummary specifies all member cluster state and conditions.
+type ResourceSummary struct {
+	// Allocatable represents the resources of all clusters that are available for scheduling.
+	// Total amount of allocatable resources on all nodes of all clusters.
+	// +optional
+	Allocatable corev1.ResourceList `json:"allocatable,omitempty"`
+
+	// Allocating represents the resources of all clusters that are pending for scheduling.
+	// Total amount of required resources of all Pods of all clusters that are waiting for scheduling.
+	// +optional
+	Allocating corev1.ResourceList `json:"allocating,omitempty"`
+
+	// Allocated represents the resources of all clusters that have been scheduled.
+	// Total amount of required resources of all Pods of all clusters that have been scheduled to nodes.
+	// +optional
+	Allocated corev1.ResourceList `json:"allocated,omitempty"`
+
+	// ClusterResource represents the resources of each cluster.
+	// +optional
+	ClusterResource map[string]clusterv1alpha1.ResourceSummary `json:"clusterResource,omitempty"`
+}
+
+type Statistic struct {
+	// TotalNum represents the total number of resource of member cluster.
+	// +optional
+	TotalNum int `json:"totalNum,omitempty"`
+
+	// ReadyNum represents the resource in ready state.
+	// +optional
+	ReadyNum int `json:"readyNum,omitempty"`
+}
+
+// WorkloadSummary represents the summary of workload state in a specific cluster.
+type WorkloadSummary struct {
+	// Statistic represent  workload total number and ready member of all of member cluster.
+	*Statistic
+
+	// ClusterWorkload represent cluster
+	// +optional
+	ClusterWorkload map[string]*Statistic `json:"clusterWorkload,omitempty"`
 }
 
 // +enum

@@ -246,6 +246,10 @@ github.com/josharian/intern
 # github.com/json-iterator/go v1.1.12
 ## explicit; go 1.12
 github.com/json-iterator/go
+# github.com/karmada-io/api v1.2.0
+## explicit; go 1.17
+github.com/karmada-io/api/cluster
+github.com/karmada-io/api/cluster/v1alpha1
 # github.com/klauspost/compress v1.13.6
 ## explicit; go 1.15
 github.com/klauspost/compress
