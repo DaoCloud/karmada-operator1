@@ -9,7 +9,6 @@ import (
 	corev1 "k8s.io/api/core/v1"
 
 	installv1alpha1 "github.com/daocloud/karmada-operator/pkg/apis/install/v1alpha1"
-	"github.com/daocloud/karmada-operator/pkg/constants"
 )
 
 var (
@@ -117,7 +116,6 @@ func Convert_KarmadaDeployment_To_Values(kmd *installv1alpha1.KarmadaDeployment)
 				StorageType: kmd.Spec.ControlPlane.ETCD.StorageMode,
 			},
 		}
-
 		if len(kmd.Spec.ControlPlane.ETCD.StorageClass) > 0 || len(kmd.Spec.ControlPlane.ETCD.Size) > 0 {
 			etcd.Internal.PVC = PVC{
 				StorageClass: kmd.Spec.ControlPlane.ETCD.StorageClass,
@@ -217,20 +215,30 @@ func Convert_KarmadaDeployment_To_Values(kmd *installv1alpha1.KarmadaDeployment)
 		values.Components = kmd.Spec.ControlPlane.Components
 	}
 
+	// set serviceType to apiservice.
+	if len(kmd.Spec.ControlPlane.ServiceType) > 0 {
+		apiserver := Module{}
+		if module, exist := values.Modules["apiServer"]; exist {
+			apiserver = module
+		}
+		apiserver.ServiceType = kmd.Spec.ControlPlane.ServiceType
+		values.Modules["apiServer"] = apiserver
+	}
+
 	return values
 }
 
 // setDefaultValues set apiserver default values
 // set default external ip
 // the certificate expires in 10 years
-func SetDefaultValues(v *Values, releaseNamespace string, externalHosts []string) {
+func SetChartDefaultValues(v *Values, releaseNamespace string, externalHosts []string) {
 	apiserver := Module{}
 	if module, exist := v.Modules["apiServer"]; exist {
 		apiserver = module
 	}
 
-	apiserver.NodePort = constants.KarmadaAPIServerNodePort
-	apiserver.ServiceType = corev1.ServiceTypeNodePort
+	defaultHostNetwork := false
+	apiserver.HostNetwork = &defaultHostNetwork
 	v.Modules["apiServer"] = apiserver
 
 	hosts := []string{

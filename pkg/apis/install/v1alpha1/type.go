@@ -140,6 +140,11 @@ type ControlPlaneCfg struct {
 	// +optional
 	InstallCRD *bool `json:"installCRD,omitempty"`
 
+	// ServiceType represents the sevice type of karmada apiserver.
+	// it is Nodeport by default.
+	// +optional
+	ServiceType corev1.ServiceType `json:"serviceType,omitempty"`
+
 	// support extar chart values to a configmap, the chart values
 	// format exactly reference to origin chart value.yaml.
 	// +optional

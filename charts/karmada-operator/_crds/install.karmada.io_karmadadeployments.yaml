@@ -162,6 +162,10 @@ spec:
                     description: specified namespace to karmada, if not specified
                       defualt "karmada-system".
                     type: string
+                  serviceType:
+                    description: ServiceType represents the sevice type of karmada
+                      apiserver. it is Nodeport by defautl.
+                    type: string
                 type: object
               images:
                 description: set global images registry and version, kubenetes original

@@ -40,8 +40,9 @@ import (
 )
 
 const (
-	maxClusterSynchroRetry = 15
-	ControllerFinalizer    = "karmada.install.io/installer-controller"
+	// maximum retry times.
+	MaxInstallSyncRetry = 5
+	ControllerFinalizer = "karmada.install.io/installer-controller"
 )
 
 type Controller struct {
@@ -159,7 +160,7 @@ func (c *Controller) processNext() bool {
 	if err := c.syncHandler(name); err != nil {
 		klog.ErrorS(err, "Failed to reconcile karmadaDeployment", "cluster", name, "num requeues", c.queue.NumRequeues(key))
 
-		if c.queue.NumRequeues(key) < maxClusterSynchroRetry {
+		if c.queue.NumRequeues(key) < MaxInstallSyncRetry {
 			c.queue.AddRateLimited(key)
 			return true
 		}
