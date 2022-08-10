@@ -33,7 +33,6 @@ import (
 	"k8s.io/apimachinery/pkg/runtime"
 	"k8s.io/apimachinery/pkg/version"
 	"k8s.io/apimachinery/pkg/watch"
-	"k8s.io/client-go/kubernetes"
 	clientset "k8s.io/client-go/kubernetes"
 	"k8s.io/client-go/tools/cache"
 	"k8s.io/client-go/tools/clientcmd"
@@ -113,10 +112,8 @@ func (install *installWorkflow) Install(kmd *installv1alpha1.KarmadaDeployment) 
 func (install *installWorkflow) Preflight(kmd *installv1alpha1.KarmadaDeployment) error {
 	klog.Infof("[helm-installer]:start proflight phase for %s", kmd.Name)
 
-	// TODO: complete kmd.
-	if len(kmd.Spec.ControlPlane.Namespace) == 0 {
-		kmd.Spec.ControlPlane.Namespace = kmd.Name
-	}
+	// set default values to kmd.
+	SetDefault(kmd)
 
 	var err error
 	if err = status.SetStatusPhase(install.kmdClient, kmd, installv1alpha1.PreflightPhase); err != nil {
@@ -136,7 +133,7 @@ func (install *installWorkflow) Preflight(kmd *installv1alpha1.KarmadaDeployment
 			klog.Errorf("[helm-installer]:failed get ips of kubenetes master node, err:", err)
 		}
 
-		SetDefaultValues(values, kmd.Spec.ControlPlane.Namespace, IPs)
+		SetChartDefaultValues(values, kmd.Spec.ControlPlane.Namespace, IPs)
 		install.values = values
 	}
 	return nil
@@ -206,6 +203,8 @@ func (install *installWorkflow) Deploy(kmd *installv1alpha1.KarmadaDeployment) e
 	}
 
 	values, err := install.values.ValuesWithHostInstallMode()
+	klog.V(5).Infof("chart values.ymal:\n%s", values)
+
 	if err != nil {
 		klog.Errorf("[helm-installer]:failed to compose chart values: %v", err)
 	}
@@ -341,24 +340,27 @@ func (install *installWorkflow) Completed(kmd *installv1alpha1.KarmadaDeployment
 		return fmt.Errorf("failed to load internal kubeconfig from secret %s", secret.Name)
 	}
 
-	externalConfig, err := install.BuildExtetnalKubeconfig(configByte)
-	if err != nil {
-		return err
-	}
+	if kmd.Spec.ControlPlane.ServiceType != corev1.ServiceTypeClusterIP {
+		configByte, err = install.BuildExtetnalKubeconfig(configByte)
+		if err != nil {
+			return err
+		}
 
-	// set karmada version and kube apiserver version to kmd status.
-	// the karmada version is by default.
-	version, err := GetKarmadaVersion(externalConfig)
-	if err != nil {
-		klog.Errorf("[helm-installer]:failed get karmada version, err: %v", err)
+		// set karmada version and kube apiserver version to kmd status.
+		// the karmada version is by default.
+		version, err := GetKarmadaVersion(configByte)
+		if err != nil {
+			klog.Errorf("[helm-installer]:failed get karmada version, err: %v", err)
+		}
+
+		kmd.Status.KubernetesVersion = version.String()
+		klog.Info("[helm-installer]:success install karmada release, version:", version.String())
 	}
 
 	// TODO: How to get the karmada version?
 	kmd.Status.KarmadaVersion = constants.DefaultKarmadaVersion
-	kmd.Status.KubernetesVersion = version.String()
-	klog.Info("[helm-installer]:success install karmada release, version:", kmd.Status.KarmadaVersion)
 
-	secretCopy, err := CreateSecretForExternalKubeconfig(install.client, externalConfig, kmd)
+	secretCopy, err := CreateSecretForExternalKubeconfig(install.client, configByte, kmd)
 	if err != nil {
 		klog.Errorf("[helm-installer]:failed create secret for external kubeconfig, err:", err)
 		return err
@@ -401,12 +403,53 @@ func (install *installWorkflow) BuildExtetnalKubeconfig(internalConfig []byte) (
 		return nil, err
 	}
 
-	serverURL := fmt.Sprintf("https://%s:%v", materIP[0], constants.KarmadaAPIServerNodePort)
+	port, err := install.ServicePort()
+	if err != nil {
+		klog.Errorf("failed to get karmada apiserver service port.")
+		return nil, err
+	}
+
+	serverURL := fmt.Sprintf("https://%s:%v", materIP[0], port)
 	if cluster, exist := config.Clusters[clusterName]; exist {
 		cluster.Server = serverURL
 	}
 
 	return clientcmd.Write(*config)
+}
+
+func (install *installWorkflow) ServicePort() (int32, error) {
+	namespace := install.release.Namespace
+	serviceName := fmt.Sprintf("%s-apiserver", install.release.Name)
+	service, err := install.destClient.CoreV1().Services(namespace).Get(context.TODO(), serviceName, metav1.GetOptions{})
+	if err != nil {
+		return 0, err
+	}
+
+	var port int32
+	ports := service.Spec.Ports
+	for _, p := range ports {
+		if p.Name != serviceName {
+			continue
+		}
+
+		if service.Spec.Type == corev1.ServiceTypeClusterIP {
+			port = p.Port
+		} else {
+			port = p.NodePort
+		}
+	}
+
+	return port, nil
+}
+
+func SetDefault(kmd *installv1alpha1.KarmadaDeployment) {
+	if len(kmd.Spec.ControlPlane.Namespace) == 0 {
+		kmd.Spec.ControlPlane.Namespace = kmd.Name
+	}
+
+	if len(kmd.Spec.ControlPlane.ServiceType) == 0 {
+		kmd.Spec.ControlPlane.ServiceType = corev1.ServiceTypeNodePort
+	}
 }
 
 func GetKarmadaVersion(kubeconfig []byte) (*version.Info, error) {
@@ -418,7 +461,7 @@ func GetKarmadaVersion(kubeconfig []byte) (*version.Info, error) {
 	return client.ServerVersion()
 }
 
-func CreateSecretForExternalKubeconfig(client kubernetes.Interface, data []byte, kmd *installv1alpha1.KarmadaDeployment) (*corev1.Secret, error) {
+func CreateSecretForExternalKubeconfig(client clientset.Interface, data []byte, kmd *installv1alpha1.KarmadaDeployment) (*corev1.Secret, error) {
 	// restore the karmda kubeconfig to secret, and set the secret info to kmd status.
 	secret := &corev1.Secret{
 		ObjectMeta: metav1.ObjectMeta{
