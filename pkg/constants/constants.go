@@ -8,7 +8,7 @@ const (
 	// karmada apiserver default port.
 	KarmadaAPIServerNodePort = 32443
 	// karmada chart download dir.
-	ChartBasePath = "/var/run/karmada-operator"
+	ChartBasePath = "/Users/chenwen/workspace/daocloud/karmada-operator"
 	// KubeconfigBasePath = "/var/run/karmada-operator/kubeconfig".
 	KubeconfigBasePath = ChartBasePath + "/config"
 )

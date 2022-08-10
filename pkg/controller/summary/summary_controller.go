@@ -198,16 +198,16 @@ func (rc *SummaryController) syncKmdStatusResource(key string) (bool, error) {
 
 	_, name, err := cache.SplitMetaNamespaceKey(key)
 	if err != nil {
-		return true, err
+		return false, err
 	}
 
 	kmd, err := rc.installStore.Get(name)
 	if apierrors.IsNotFound(err) {
 		klog.V(4).Infof("%v has been deleted", key)
-		return true, err
+		return true, nil
 	}
 	if err != nil {
-		return true, err
+		return false, err
 	}
 
 	if !kmd.DeletionTimestamp.IsZero() {

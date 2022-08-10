@@ -115,7 +115,7 @@ func (m *SummaryManager) Run(shutdown <-chan struct{}) {
 		return
 	}
 
-	go wait.Until(m.worker, time.Second, shutdown)
+	go wait.Until(m.worker, time.Second, m.close)
 
 	go func() {
 		<-shutdown
@@ -131,6 +131,9 @@ func (m *SummaryManager) worker() {
 		if err != nil {
 			klog.Errorf("failed sync karmadadeployment summary, err: %v", err)
 		}
+
+		// TODO: sleep one secend.
+		time.Sleep(time.Second)
 	}
 }
 

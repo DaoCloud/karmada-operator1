@@ -5,6 +5,9 @@ metadata:
 spec:
   mode: Helm
   controlPlane:
+    endPointCfg:
+      secretRef:
+         name: karmada-install
     etcd:
       storageMode: hostPath
     modules:
