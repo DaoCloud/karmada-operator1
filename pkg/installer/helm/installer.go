@@ -64,7 +64,8 @@ func NewHelmInstaller(kmd *installv1alpha1.KarmadaDeployment, kmdClient versione
 		config     *rest.Config
 	)
 	if kmd.Spec.ControlPlane.EndPointCfg == nil {
-		//use in cluster config
+		// use in cluster config.
+		// TODO: the length of kubeconfig is zero.
 		config, err = rest.InClusterConfig()
 		if err != nil {
 			return nil, fmt.Errorf("failed load in cluster config: %w", err)
@@ -73,6 +74,9 @@ func NewHelmInstaller(kmd *installv1alpha1.KarmadaDeployment, kmdClient versione
 		// TODO: load kubeconfig from kubeconfig path
 		// is the secret data to kubeconfig file or caData and token.
 		secretRef := kmd.Spec.ControlPlane.EndPointCfg.SecretRef
+		if len(secretRef.Namespace) == 0 {
+			secretRef.Namespace = "default"
+		}
 		secret, err := client.CoreV1().Secrets(secretRef.Namespace).Get(context.TODO(), secretRef.Name, metav1.GetOptions{})
 		if err != nil {
 			return nil, err

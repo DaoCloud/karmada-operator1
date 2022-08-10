@@ -5,6 +5,7 @@ A Karmada Operator based on the K8s Operator model built by DaoCloud, Karmada Op
 ## TL;DR
 
 Switch to the `root` directory of the repo.
+
 ```console
 helm install karmada-operator -n karmada-operator-system --create-namespace --dependency-update ./charts/karmada-operator
 ```
@@ -21,6 +22,7 @@ To install the chart with the release name `karmada-operator` in namespace `karm
 - local installation
 
 Switch to the `root` directory of the repo.
+
 ```console
 helm install karmada-operator -n karmada-operator-system --create-namespace --dependency-update ./charts/karmada-operator
 ```
@@ -28,19 +30,24 @@ helm install karmada-operator -n karmada-operator-system --create-namespace --de
 - remote installation
 
 First, add the Karmada-Operator chart repo to your local repository.
+
 ```console
 $ helm repo add karmada https://release.daocloud.io/chartrepo/karmada
 $ helm repo list
 NAME            URL
-karmada-operator-release   https://release.daocloud.io/chartrepo/karmada-operator
+karmada-operator   https://release.daocloud.io/chartrepo/karmada-operator
 ```
+
 With the repo added, available charts and versions can be viewed.
+
 ```console
 helm search repo karmada-operator-release
 ```
+
 Install the chart and specify the version to install with the --version argument. Replace <x.x.x> with your desired version. Now only support --version=v0.0.1.
+
 ```console
-helm --namespace karmada-operator-system upgrade -i karmada-operator karmada-operator-release/karmada-operator --version=<x.x.x> --create-namespace
+helm --namespace karmada-operator-system upgrade -i karmada-operator karmada-operator/karmada-operator --version=<x.x.x> --create-namespace
 Release "karmada-operator" does not exist. Installing it now.
 NAME: karmada
 LAST DEPLOYED: Mon May 30 07:19:36 2022
@@ -59,6 +66,9 @@ To learn more about the release, try:
   $ helm get all karmada-operator -n karmada-operator-system
 ```
 
+- example
+there is an [example](./examples/karmadaDeployment.yaml) to install a karmada instance on current cluster.
+
 > **Tip**: List all releases using `helm list`
 
 ## Uninstalling the Chart
@@ -69,12 +79,8 @@ helm uninstall karmada-operator -n karmada-operator-system
 ```
 
 The command removes all the Kubernetes components associated with the chart and deletes the release.
-> **Note**: There are some RBAC resources that are used by the `preJob` that can not be deleted by the `uninstall` command above. You might have to clean them manually with tools like `kubectl`.  You can clean them by commands:
 
 ```console
-kubectl delete sa/karmada-operator-controller-manager -n karmada-operator-system
-kubectl delete clusterRole/karmada-operator
-kubectl delete clusterRoleBinding/karmada-operator
 kubectl delete ns karmada-operator-system
 ```
 

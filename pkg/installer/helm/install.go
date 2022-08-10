@@ -346,11 +346,17 @@ func (install *installWorkflow) Completed(kmd *installv1alpha1.KarmadaDeployment
 		return err
 	}
 
+	// set karmada version and kube apiserver version to kmd status.
+	// the karmada version is by default.
 	version, err := GetKarmadaVersion(externalConfig)
 	if err != nil {
 		klog.Errorf("[helm-installer]:failed get karmada version, err: %v", err)
 	}
-	klog.Info("[helm-installer]:success install karmada release, version:", version.String())
+
+	// TODO: How to get the karmada version?
+	kmd.Status.KarmadaVersion = constants.DefaultKarmadaVersion
+	kmd.Status.KubernetesVersion = version.String()
+	klog.Info("[helm-installer]:success install karmada release, version:", kmd.Status.KarmadaVersion)
 
 	secretCopy, err := CreateSecretForExternalKubeconfig(install.client, externalConfig, kmd)
 	if err != nil {
@@ -416,7 +422,7 @@ func CreateSecretForExternalKubeconfig(client kubernetes.Interface, data []byte,
 	// restore the karmda kubeconfig to secret, and set the secret info to kmd status.
 	secret := &corev1.Secret{
 		ObjectMeta: metav1.ObjectMeta{
-			GenerateName: fmt.Sprintf("%s-kubeconfig", kmd.Name),
+			GenerateName: fmt.Sprintf("%s-kubeconfig-", kmd.Name),
 			Namespace:    kmd.Namespace,
 		},
 		Data: map[string][]byte{

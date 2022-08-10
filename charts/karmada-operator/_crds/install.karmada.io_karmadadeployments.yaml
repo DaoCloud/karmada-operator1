@@ -340,25 +340,46 @@ spec:
                         type: object
                       readyNum:
                         description: ReadyNum represents the resource in ready state.
+                        format: int32
                         type: integer
                       totalNum:
                         description: TotalNum represents the total number of resource
                           of member cluster.
+                        format: int32
                         type: integer
                     type: object
                   nodeSummary:
                     description: NodeSummary represents all nodes summary of all clusters.
                     properties:
+                      clusterNodeSummary:
+                        additionalProperties:
+                          properties:
+                            readyNum:
+                              description: ReadyNum represents the resource in ready
+                                state.
+                              format: int32
+                              type: integer
+                            totalNum:
+                              description: TotalNum represents the total number of
+                                resource of member cluster.
+                              format: int32
+                              type: integer
+                          type: object
+                        description: ClusterNodeSummary is node summary of each cluster.
+                        type: object
                       readyNum:
                         description: ReadyNum represents the resource in ready state.
+                        format: int32
                         type: integer
                       totalNum:
                         description: TotalNum represents the total number of resource
                           of member cluster.
+                        format: int32
                         type: integer
                     type: object
                   policyTotalNum:
                     additionalProperties:
+                      format: int32
                       type: integer
                     description: 'PolicyTotalNum represent the total number of policy
                       resource. e.g: PropagationPolicy, OverridePolicy.'
@@ -404,8 +425,6 @@ spec:
                         type: object
                       clusterResource:
                         additionalProperties:
-                          description: ResourceSummary represents the summary of resources
-                            in the member cluster.
                           properties:
                             allocatable:
                               additionalProperties:
@@ -415,8 +434,9 @@ spec:
                                 pattern: ^(\+|-)?(([0-9]+(\.[0-9]*)?)|(\.[0-9]+))(([KMGTPE]i)|[numkMGTPE]|([eE](\+|-)?(([0-9]+(\.[0-9]*)?)|(\.[0-9]+))))?$
                                 x-kubernetes-int-or-string: true
                               description: Allocatable represents the resources of
-                                a cluster that are available for scheduling. Total
-                                amount of allocatable resources on all nodes.
+                                all clusters that are available for scheduling. Total
+                                amount of allocatable resources on all nodes of all
+                                clusters.
                               type: object
                             allocated:
                               additionalProperties:
@@ -425,10 +445,10 @@ spec:
                                 - type: string
                                 pattern: ^(\+|-)?(([0-9]+(\.[0-9]*)?)|(\.[0-9]+))(([KMGTPE]i)|[numkMGTPE]|([eE](\+|-)?(([0-9]+(\.[0-9]*)?)|(\.[0-9]+))))?$
                                 x-kubernetes-int-or-string: true
-                              description: Allocated represents the resources of a
-                                cluster that have been scheduled. Total amount of
-                                required resources of all Pods that have been scheduled
-                                to nodes.
+                              description: Allocated represents the resources of all
+                                clusters that have been scheduled. Total amount of
+                                required resources of all Pods of all clusters that
+                                have been scheduled to nodes.
                               type: object
                             allocating:
                               additionalProperties:
@@ -438,9 +458,9 @@ spec:
                                 pattern: ^(\+|-)?(([0-9]+(\.[0-9]*)?)|(\.[0-9]+))(([KMGTPE]i)|[numkMGTPE]|([eE](\+|-)?(([0-9]+(\.[0-9]*)?)|(\.[0-9]+))))?$
                                 x-kubernetes-int-or-string: true
                               description: Allocating represents the resources of
-                                a cluster that are pending for scheduling. Total amount
-                                of required resources of all Pods that are waiting
-                                for scheduling.
+                                all clusters that are pending for scheduling. Total
+                                amount of required resources of all Pods of all clusters
+                                that are waiting for scheduling.
                               type: object
                           type: object
                         description: ClusterResource represents the resources of each
@@ -449,6 +469,7 @@ spec:
                     type: object
                   resourceTotalNum:
                     additionalProperties:
+                      format: int32
                       type: integer
                     description: 'ResourceTotalNum represent the total number of distributed
                       resource on karmada control plane. e.g: service, ingress, pvc,
@@ -459,10 +480,12 @@ spec:
                       properties:
                         readyNum:
                           description: ReadyNum represents the resource in ready state.
+                          format: int32
                           type: integer
                         totalNum:
                           description: TotalNum represents the total number of resource
                             of member cluster.
+                          format: int32
                           type: integer
                       type: object
                     description: 'WorkLoadSummary represents all workLoads summary
