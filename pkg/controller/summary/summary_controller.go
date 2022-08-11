@@ -198,16 +198,16 @@ func (rc *SummaryController) syncKmdStatusResource(key string) (bool, error) {
 
 	_, name, err := cache.SplitMetaNamespaceKey(key)
 	if err != nil {
-		return true, err
+		return false, err
 	}
 
 	kmd, err := rc.installStore.Get(name)
-	if apierrors.IsNotFound(err) {
-		klog.V(4).Infof("%v has been deleted", key)
-		return true, err
-	}
 	if err != nil {
-		return true, err
+		if apierrors.IsNotFound(err) {
+			klog.V(4).Infof("%v has been deleted", key)
+			return true, nil
+		}
+		return false, err
 	}
 
 	if !kmd.DeletionTimestamp.IsZero() {
@@ -220,7 +220,7 @@ func (rc *SummaryController) syncKmdStatusResource(key string) (bool, error) {
 		controllerutil.ContainsFinalizer(kmd.DeepCopy(), StatusControllerFinalizer)
 		_ = controllerutil.RemoveFinalizer(kmd, StatusControllerFinalizer)
 		if _, err := rc.kmdClient.InstallV1alpha1().KarmadaDeployments().Update(context.TODO(), kmd, metav1.UpdateOptions{}); err != nil {
-			return true, err
+			return false, err
 		}
 
 		return true, nil
@@ -229,13 +229,13 @@ func (rc *SummaryController) syncKmdStatusResource(key string) (bool, error) {
 	if !controllerutil.ContainsFinalizer(kmd, StatusControllerFinalizer) {
 		_ = controllerutil.AddFinalizer(kmd, StatusControllerFinalizer)
 		if kmd, err = rc.kmdClient.InstallV1alpha1().KarmadaDeployments().Update(context.TODO(), kmd, metav1.UpdateOptions{}); err != nil {
-			return true, err
+			return false, err
 		}
 	}
 
 	manager, err := rc.GetSummaryManager(kmd)
 	if err != nil {
-		return false, nil
+		return false, err
 	}
 	rc.waitGroup.StartWithChannel(rc.stopCh, manager.Run)
 
