@@ -24,6 +24,7 @@ import (
 	appsv1 "k8s.io/api/apps/v1"
 	corev1 "k8s.io/api/core/v1"
 	"k8s.io/apimachinery/pkg/api/equality"
+	apierrors "k8s.io/apimachinery/pkg/api/errors"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/labels"
 	"k8s.io/apimachinery/pkg/runtime/schema"
@@ -127,7 +128,7 @@ func (m *SummaryManager) Run(shutdown <-chan struct{}) {
 
 func (m *SummaryManager) worker() {
 	for {
-		_, err := m.processNextWorkItem()
+		err := m.processNextWorkItem()
 		if err != nil {
 			klog.Errorf("failed sync karmadadeployment summary, err: %v", err)
 		}
@@ -137,12 +138,17 @@ func (m *SummaryManager) worker() {
 	}
 }
 
-func (m *SummaryManager) processNextWorkItem() (bool, error) {
+func (m *SummaryManager) processNextWorkItem() error {
 	kmd, err := m.installStore.Get(m.kmdName)
 	if err != nil {
-		return false, err
+		if apierrors.IsNotFound(err) {
+			klog.V(4).Infof("%v has been deleted", m.kmdName)
+			return nil
+		}
+		return err
 	}
 
+	// init a sumary if the status of kmd is nil.
 	summary := kmd.Status.Summary
 	if summary == nil {
 		summary = &installv1alpha1.KarmadaResourceSummary{
@@ -152,14 +158,14 @@ func (m *SummaryManager) processNextWorkItem() (bool, error) {
 	}
 
 	if err := m.syncHandler(summary); err != nil {
-		return false, err
+		return err
 	}
 
 	if err := m.updateKmdStatusSummaryIfNeed(kmd.DeepCopy(), summary); err != nil {
-		return false, err
+		return err
 	}
 
-	return true, nil
+	return nil
 }
 
 func (m *SummaryManager) updateKmdStatusSummaryIfNeed(kmd *installv1alpha1.KarmadaDeployment, summary *installv1alpha1.KarmadaResourceSummary) error {

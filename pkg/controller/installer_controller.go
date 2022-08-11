@@ -186,9 +186,9 @@ func (c *Controller) syncHandler(key string) (err error) {
 
 	kmd, err := c.installStore.Get(name)
 	if err != nil {
-		if !apierrors.IsNotFound(err) {
+		if apierrors.IsNotFound(err) {
 			klog.ErrorS(err, "failed to get karmadaDeployment from lister", "policy", name)
-			return err
+			return nil
 		}
 		return err
 	}
