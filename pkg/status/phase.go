@@ -50,3 +50,28 @@ func SetStatusPhase(client versioned.Interface, kmd *installv1alpha1.KarmadaDepl
 		return
 	})
 }
+
+func SetStatus(client versioned.Interface, kmd *installv1alpha1.KarmadaDeployment) error {
+	firstTry := true
+	status := kmd.Status
+	return retry.RetryOnConflict(retry.DefaultBackoff, func() (err error) {
+		if !firstTry {
+			var getErr error
+			kmd, getErr = client.InstallV1alpha1().KarmadaDeployments().
+				Get(context.TODO(), kmd.Name, metav1.GetOptions{})
+
+			if getErr != nil {
+				return getErr
+			}
+		}
+
+		kmd.Status = status
+		kmdc := kmd.DeepCopy()
+
+		_, err = client.InstallV1alpha1().KarmadaDeployments().
+			UpdateStatus(context.TODO(), kmdc, metav1.UpdateOptions{})
+
+		firstTry = false
+		return
+	})
+}
