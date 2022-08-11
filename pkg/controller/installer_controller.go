@@ -187,7 +187,7 @@ func (c *Controller) syncHandler(key string) (err error) {
 	kmd, err := c.installStore.Get(name)
 	if err != nil {
 		if apierrors.IsNotFound(err) {
-			klog.ErrorS(err, "failed to get karmadaDeployment from lister", "policy", name)
+			klog.V(4).Infof("kmd has been deleted: %v", key)
 			return nil
 		}
 		return err
@@ -195,7 +195,6 @@ func (c *Controller) syncHandler(key string) (err error) {
 
 	if !kmd.DeletionTimestamp.IsZero() {
 		klog.InfoS("remove karmadaDeployment", "karmadaDeployment", kmd.Name)
-
 		if err := c.factory.SyncWithAction(kmd, factory.UninstallAction); err != nil {
 			return err
 		}
@@ -205,7 +204,6 @@ func (c *Controller) syncHandler(key string) (err error) {
 		if _, err := c.kmdClient.InstallV1alpha1().KarmadaDeployments().Update(context.TODO(), kmd, metav1.UpdateOptions{}); err != nil {
 			return err
 		}
-
 		return nil
 	}
 	// ensure finalizer

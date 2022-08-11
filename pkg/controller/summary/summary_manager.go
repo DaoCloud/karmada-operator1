@@ -17,7 +17,6 @@ limitations under the License.
 package summary
 
 import (
-	"context"
 	"sync"
 	"time"
 
@@ -37,6 +36,7 @@ import (
 	"github.com/daocloud/karmada-operator/pkg/controller/summary/informermanager"
 	"github.com/daocloud/karmada-operator/pkg/generated/clientset/versioned"
 	installliter "github.com/daocloud/karmada-operator/pkg/generated/listers/install/v1alpha1"
+	"github.com/daocloud/karmada-operator/pkg/status"
 	clusterv1alpha1 "github.com/karmada-io/api/cluster/v1alpha1"
 	policyv1alpha1 "github.com/karmada-io/api/policy/v1alpha1"
 )
@@ -127,25 +127,27 @@ func (m *SummaryManager) Run(shutdown <-chan struct{}) {
 }
 
 func (m *SummaryManager) worker() {
-	for {
-		err := m.processNextWorkItem()
-		if err != nil {
-			klog.Errorf("failed sync karmadadeployment summary, err: %v", err)
+	for m.processNext() {
+		select {
+		case <-m.close:
+			return
+		default:
+			// TODO: sleep one secend.
+			time.Sleep(time.Second)
 		}
-
-		// TODO: sleep one secend.
-		time.Sleep(time.Second)
 	}
 }
 
-func (m *SummaryManager) processNextWorkItem() error {
+func (m *SummaryManager) processNext() bool {
 	kmd, err := m.installStore.Get(m.kmdName)
 	if err != nil {
 		if apierrors.IsNotFound(err) {
 			klog.V(4).Infof("%v has been deleted", m.kmdName)
-			return nil
+			return true
 		}
-		return err
+
+		klog.Errorf("failed to get kmd %s, err: %v", m.kmdName, err)
+		return true
 	}
 
 	// init a sumary if the status of kmd is nil.
@@ -158,14 +160,16 @@ func (m *SummaryManager) processNextWorkItem() error {
 	}
 
 	if err := m.syncHandler(summary); err != nil {
-		return err
+		klog.Errorf("failed to sync kmd %s summary, err: %v", m.kmdName, err)
+		return true
 	}
 
 	if err := m.updateKmdStatusSummaryIfNeed(kmd.DeepCopy(), summary); err != nil {
-		return err
+		klog.Errorf("failed to update kmd %s summary, err: %v", m.kmdName, err)
+		return true
 	}
 
-	return nil
+	return true
 }
 
 func (m *SummaryManager) updateKmdStatusSummaryIfNeed(kmd *installv1alpha1.KarmadaDeployment, summary *installv1alpha1.KarmadaResourceSummary) error {
@@ -173,8 +177,7 @@ func (m *SummaryManager) updateKmdStatusSummaryIfNeed(kmd *installv1alpha1.Karma
 		klog.V(2).Infof("Start to update kmd %s status summary", kmd.Name)
 
 		kmd.Status.Summary = summary
-		_, err := m.kmdClient.InstallV1alpha1().KarmadaDeployments().UpdateStatus(context.TODO(), kmd, metav1.UpdateOptions{})
-		if err != nil {
+		if err := status.SetStatus(m.kmdClient, kmd); err != nil {
 			klog.Errorf("Failed to update kmd %s status summary, err:", kmd.Name, err)
 			return err
 		}
