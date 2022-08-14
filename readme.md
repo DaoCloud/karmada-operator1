@@ -6,7 +6,7 @@ A Karmada Operator based on the K8s Operator model built by DaoCloud, Karmada Op
 
 Switch to the `root` directory of the repo.
 
-```console
+```shell
 helm install karmada-operator -n karmada-operator-system --create-namespace --dependency-update ./charts/karmada-operator
 ```
 
@@ -15,7 +15,11 @@ helm install karmada-operator -n karmada-operator-system --create-namespace --de
 - Kubernetes 1.16+
 - helm v3+
 
-## Installing the Chart
+## Demo
+
+![screenshot_gif](https://github.com/DaoCloud/karmada-operator/blob/main/docs/gif/demo.gif)
+
+## Installing the Chart <a id="InstallChart"></a>
 
 To install the chart with the release name `karmada-operator` in namespace `karmada-operator-system`:
 
@@ -23,34 +27,38 @@ To install the chart with the release name `karmada-operator` in namespace `karm
 
 Switch to the `root` directory of the repo.
 
-```console
+```shell
 helm install karmada-operator -n karmada-operator-system --create-namespace --dependency-update ./charts/karmada-operator
 ```
+
+> **Tip**: If you need to modify [values.yaml](./charts/karmada-operator/values.yaml),  please refer to [Configuration](#Configuration)
 
 - remote installation
 
 First, add the Karmada-Operator chart repo to your local repository.
 
-```console
+```shell
 $ helm repo add karmada https://release.daocloud.io/chartrepo/karmada
 $ helm repo list
 NAME            URL
-karmada-operator   https://release.daocloud.io/chartrepo/karmada-operator
+karmada   https://release.daocloud.io/chartrepo/karmada
 ```
 
 With the repo added, available charts and versions can be viewed.
 
-```console
-helm search repo karmada-operator-release
+```shell
+$ helm search repo karmada
+NAME                    	CHART VERSION	APP VERSION	DESCRIPTION
+karmada/karmada-operator	0.0.5        	0.0.5      	A Helm chart for karmada-operator
 ```
 
-Install the chart and specify the version to install with the --version argument. Replace <x.x.x> with your desired version. Now only support --version=v0.0.1.
+Install the chart and specify the version to install with the --version argument. Replace `--version=<x.x.x>` with your desired version. such as the above `karmada/karmada-operator` chart version 0.0.5 , so you can use `--version=0.0.5`.
 
-```console
-helm --namespace karmada-operator-system upgrade -i karmada-operator karmada-operator/karmada-operator --version=<x.x.x> --create-namespace
+```shell
+$ helm --namespace karmada-operator-system upgrade -i karmada-operator karmada/karmada-operator --version=<x.x.x> --create-namespace
 Release "karmada-operator" does not exist. Installing it now.
-NAME: karmada
-LAST DEPLOYED: Mon May 30 07:19:36 2022
+NAME: karmada-operator
+LAST DEPLOYED: Thu Aug 11 15:24:01 2022
 NAMESPACE: karmada-operator-system
 STATUS: deployed
 REVISION: 1
@@ -67,113 +75,183 @@ To learn more about the release, try:
 ```
 
 - example
-there is an [example](./examples/karmadaDeployment.yaml) to install a karmada instance on current cluster.
+  there is an [example](./examples/karmadaDeployment.yaml) to install a karmada instance on current cluster.
 
 > **Tip**: List all releases using `helm list`
 
-## Uninstalling the Chart
-To uninstall/delete the `karmada-operator` helm release in namespace `karmada-operator-system`:
 
-```console
-helm uninstall karmada-operator -n karmada-operator-system
+## Create a KarmadaDeployment
+
+After installing karmada-operator, use `cr` to create karmadaDeployment
+
+Create `cr` using below command in the cluster where the karmada-operator install
+
+> **Tip**:
+>
+> - If no `secretRef` is specified in `cr`, the karmada instance is installed in the cluster where karmada-operator is located
+> - If no `namespace` is specified in `cr`, the default install namespace is the same as the karmadaDeployment name
+
+```shell
+#deploy KarmadaDeployment demo-kmd in the cluster where the karmada-operator install 
+$ kubectl apply -f https://github.com/DaoCloud/karmada-operator/blob/main/examples/karmadaDeployment.yaml
 ```
 
-The command removes all the Kubernetes components associated with the chart and deletes the release.
+The process of deploying karmada may take a few minutes, check the operation of karmada's components
 
-```console
-kubectl delete ns karmada-operator-system
+```shell
+$ kubectl -n demo-kmd get pod
+NAME                                                        READY   STATUS    RESTARTS      AGE
+etcd-0                                                      1/1     Running   0             19m
+karmada-demo-kmd-aggregated-apiserver-6fd745748-hjbq7       1/1     Running   0             19m
+karmada-demo-kmd-apiserver-429bfb7c1-6fkrk                  1/1     Running   0             19m
+karmada-demo-kmd-controller-manager-7b8f5699c-mvx8s         1/1     Running   3 (21m ago)   21m
+karmada-demo-kmd-controller-manager-7b8f5699c-7fc8c         1/1     Running   2 (19m ago)   19m
+karmada-demo-kmd-kube-controller-manager-9b56855fdc-699c5   1/1     Running   0             19m
+karmada-demo-kmd-scheduler-685b997cb7-9467w                 1/1     Running   0             19m
+karmada-demo-kmd-scheduler-685b997cb7-85c84                 1/1     Running   0             20m
+karmada-demo-kmd-webhook-85c84d84c7-g6t9n                   1/1     Running   0             19m
 ```
 
-## Demo
+ok, karmada installation is complete.
 
-![screenshot_gif](https://github.com/DaoCloud/karmada-operator/blob/main/docs/gif/demo.gif)
+## Create multiple KarmadaDeployments
 
-## Example
-### 1. Install controller manager
-Edited values.yaml
-```YAML
-## Default values for charts.
-## This is a YAML-formatted file.
-## Declare variables to be passed into your templates.
+karmada-operator supports creating multiple karmadaDeployment instances in the same cluster,You can deploy multiple karmada instances multiple times using the `cr` of KarmadaDeployment with different content.
 
-## @param global karmada global config
-global:
-  ## @param global.imageRegistry Global Docker image registry
-  imageRegistry: "release.daocloud.io"
-  ## E.g.
-  ## imagePullSecrets:
-  ##   - myRegistryKeySecretName
-  imagePullSecrets: []
+> **Tip**:
 
-## @param commonLabels Add labels to all the deployed resources (sub-charts are not considered). Evaluated as a template
-##
-commonLabels: {}
-## @param commonAnnotations Annotations to add to all deployed objects
-##
-commonAnnotations: {}
-## @param installCRDs define flag whether to install CRD resources
-##
-installCRDs: true
+List multiple KarmadaDeployments：
 
-## operator config
-operator:
-  ## karmada chart resource
-  chartResource:
-    ## karmada chart resource repository url
-    repoUrl: https://release.daocloud.io/chartrepo/karmada
-    ## karmada chart version
-    version: 0.0.5
-    ## karmada chart name
-    name: karmada
-  ## @param operator.labels
-  labels: {}
-  ## @param operator.replicaCount target replicas
-  replicaCount: 1
-  ## @param operator.podAnnotations
-  podAnnotations: {}
-  ## @param operator.podLabels
-  podLabels: {}
-  ## @param image.registry karmada-operator operator image registry
-  ## @param image.repository karmada-operator operator image repository
-  ## @param image.tag karmada-operator operator image tag (immutable tags are recommended)
-  ## @param image.pullPolicy karmada-operator operator image pull policy
-  ## @param image.pullSecrets Specify docker-registry secret names as an array
-  ##
-  image:
-    registry: release.daocloud.io
-    repository: karmada/karmada-operator
-    tag: "v0.0.1"
-    ## Specify a imagePullPolicy
-    ## Defaults to 'Always' if image tag is 'latest', else set to 'IfNotPresent'
-    ##
-    pullPolicy: IfNotPresent
-    ## Optionally specify an array of imagePullSecrets.
-    ## Secrets must be manually created in the namespace.
-    ## Example:
-    ## pullSecrets:
-    ##   - myRegistryKeySecretName
-    ##
-    pullSecrets: []
-  ## @param operator.resources
-  resources:
-    {}
-    # If you do want to specify resources, uncomment the following
-    # lines, adjust them as necessary, and remove the curly braces after 'resources:'.
-    # limits:
-    #   cpu: 100m
-    #   memory: 128Mi
-    # requests:
-    #   cpu: 100m
-  #   memory: 128Mi
-  ## @param operator.nodeSelector
-  nodeSelector: {}
-  ## @param operator.affinity
-  affinity: {}
-  ## @param operator.tolerations
-  tolerations: []
-
+```shell
+$ kubectl get kmd
+NAME         MODE   PHASE       STATUS   AGE
+demo-kmd     Helm   Completed    true    2m42s
+demo-kmd-1   Helm   Completed    true    2m57s
+$ kubectl get pod -n demo-kmd-1
+NAME                                                        	READY   STATUS    RESTARTS      AGE
+etcd-0                                                      	1/1     Running   0             14m
+karmada-demo-kmd-1-aggregated-apiserver-9b56855fd-gwrmf         1/1     Running   0             14m
+karmada-demo-kmd-1-apiserver-6f9bbcb9c-vmxbq                    1/1     Running   0             14m
+karmada-demo-kmd-1-controller-manager-5d6777b75-7rmq8           1/1     Running   2 (17m ago)   17m
+karmada-demo-kmd-1-controller-manager-5d6777b75-g6xzd           1/1     Running   2 (16m ago)   16m
+karmada-demo-kmd-1-kube-controller-manager-76b94fb97c-6lqwv     1/1     Running   0             14m
+karmada-demo-kmd-1-scheduler-797b7b787b-klcs4                   1/1     Running   0             14m
+karmada-demo-kmd-1-scheduler-797b7b787b-r829t                   1/1     Running   0             15m
+karmada-demo-kmd-1-webhook-755d649cb4-wbx5h                     1/1     Running   0             15m
+$ kubectl get pod -n demo-kmd
+NAME                                                        READY   STATUS    RESTARTS      AGE
+etcd-0                                                      1/1     Running   0             19m
+karmada-demo-kmd-aggregated-apiserver-6fd745748-hjbq7       1/1     Running   0             19m
+karmada-demo-kmd-apiserver-429bfb7c1-6fkrk                  1/1     Running   0             19m
+karmada-demo-kmd-controller-manager-7b8f5699c-mvx8s         1/1     Running   3 (21m ago)   21m
+karmada-demo-kmd-controller-manager-7b8f5699c-7fc8c         1/1     Running   2 (19m ago)   19m
+karmada-demo-kmd-kube-controller-manager-9b56855fdc-699c5   1/1     Running   0             19m
+karmada-demo-kmd-scheduler-685b997cb7-9467w                 1/1     Running   0             19m
+karmada-demo-kmd-scheduler-685b997cb7-85c84                 1/1     Running   0             20m
+karmada-demo-kmd-webhook-85c84d84c7-g6t9n                   1/1     Running   0             19m
 ```
-## Configuration
+
+## Export Karmada KubeConfig
+
+You can get karmada kubeconfig to view karmada instance information
+
+```shell
+$ KARMADA_CONFIG=$(kubectl get secret  -n ${your_karmada_operator_namespace} $(kubectl get kmd demo-kmd -o jsonpath='{.status.secretRef.name}') -o jsonpath='{.data.kubeconfig}')
+$ echo $KARMADA_CONFIG | base64 -d > karmada-apiserver.config
+```
+
+You can export KUBECONFIG for easy login the karmada instance
+
+```shell
+export KUBECONFIG=./karmada-apiserver.config
+```
+
+We can simply test karmada-apiserver kubeconfig ,such as List namespaces
+
+```shell
+$ kubectl --kubeconfig karmada-apiserver.config get ns
+NAME              STATUS   AGE
+default           Active   124m
+demo-kmd          Active   89m
+karmada-cluster   Active   89m
+kube-node-lease   Active   124m
+kube-public       Active   124m
+kube-system       Active   124m
+```
+
+## Simple Karmada Demo
+
+We can test karmada's multi-cloud capabilities with a simple demo
+
+## Join Clusters
+
+### 1. Use kubectl karmada join cluster to Karmada.
+
+Currently you need to download karmadactl to join cluster
+
+Karmada provides `kubectl-karmada` plug-in download service since v1.2.1. You can choose proper plug-in version which fits your operator system form [karmada release](https://github.com/karmada-io/karmada/releases).
+
+Take v1.2.1 that working with linux-amd64 os as an example:
+
+```shell
+$ wget https://github.com/karmada-io/karmada/releases/download/v1.2.1/karmadactl-linux-arm64.tgz
+
+$ tar -zxf karmadactl-linux-arm64.tgz
+
+$ cp karmadactl /usr/local/bin
+```
+
+then we join `member1` and `member2` cluster into karmada
+
+`--cluster-kubeconfig` is your members kubeconfig.
+
+`--kubeconfig` is your karmada apiserver kubeconfig
+
+```shell
+$ karmadactl --kubeconfig ${your_karmada_apiserver_config} join member1 --cluster-kubeconfig=${your_member1_kubeconfig}
+$ karmadactl --kubeconfig ${your_karmada_apiserver_config} join member2 --cluster-kubeconfig=${your_member2_kubeconfig}
+```
+
+### 2. Show members of karmada
+
+```shell
+$ kubectl  --kubeconfig ${your_karmada_apiserver_config} get clusters
+NAME         VERSION    MODE   READY   AGE
+member1      v1.21.12   Push   True    2m53s
+member2      v1.22.6    Push   True    21s
+```
+
+## Propagate a deployment by Karmada
+
+### 1. Create nginx deployment in Karmada
+
+First, create a deployment named `nginx`:
+
+```shell
+# create a deployment name nginx
+$ kubectl create -f https://github.com/DaoCloud/karmada-operator/blob/main/examples/nginx/deployment.yaml --kubeconfig ${your_karmada_apiserver_config}
+```
+
+### 2. Create PropagationPolicy that will propagate nginx to member cluster
+
+Then, we need to create a policy to propagate the deployment to our member cluster.
+
+```shell
+# create a PropagationPolicy 
+$ kubectl create -f https://github.com/DaoCloud/karmada-operator/blob/main/examples/nginx/propagationpolicy.yaml --kubeconfig ${your_karmada_apiserver_config}
+```
+
+### 3. Check the deployment status from Karmada
+
+You can check deployment status from Karmada, don't need to access member cluster:
+
+```shell
+$ kubectl get deployment --kubeconfig ${your_karmada_apiserver_config}
+NAME    READY   UP-TO-DATE   AVAILABLE   AGE
+nginx   2/2     2            2           20s
+```
+
+## Configuration<a id="Configuration"></a>
 
 ### Global parameters
 
@@ -201,3 +279,18 @@ operator:
 | `controllerManager.tolerations`       | tolerations of the karmada-operator-controller-manager       | `key: node-role.kubernetes.io/master   operator: Exists` |
 | `controllerManager.kubeconfigPath`    | kubeconfig Path of the karmada-operator-controller-manager   | `"/root/.kube"`                                          |
 | `controllerManager.localKubeconfig`   | Image registry of the karmada-operator-controller-manager    | `"true"`                                                 |
+
+## Uninstalling the Chart
+
+To uninstall/delete the `karmada-operator` helm release in namespace `karmada-operator-system`:
+
+```console
+helm uninstall karmada-operator -n karmada-operator-system
+```
+
+The command removes all the Kubernetes components associated with the chart and deletes the release.
+
+```console
+kubectl delete ns karmada-operator-system
+```
+
