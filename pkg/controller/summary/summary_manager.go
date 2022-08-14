@@ -25,7 +25,9 @@ import (
 	"k8s.io/apimachinery/pkg/api/equality"
 	apierrors "k8s.io/apimachinery/pkg/api/errors"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
+	"k8s.io/apimachinery/pkg/apis/meta/v1/unstructured"
 	"k8s.io/apimachinery/pkg/labels"
+	"k8s.io/apimachinery/pkg/runtime"
 	"k8s.io/apimachinery/pkg/runtime/schema"
 	utilruntime "k8s.io/apimachinery/pkg/util/runtime"
 	"k8s.io/apimachinery/pkg/util/wait"
@@ -42,26 +44,18 @@ import (
 )
 
 var (
-	serviceGvr   = corev1.SchemeGroupVersion.WithResource("services")
-	SecretGvr    = corev1.SchemeGroupVersion.WithResource("secrets")
-	configmapGvr = corev1.SchemeGroupVersion.WithResource("configmaps")
-	pvcGvr       = corev1.SchemeGroupVersion.WithResource("persistentvolumeclaims")
-
-	// serviceGvr   = schema.GroupVersionResource{Group: "core", Version: "v1", Resource: "services"}
-	// SecretGvr    = schema.GroupVersionResource{Group: "core", Version: "v1", Resource: "secrets"}
-	// configmapGvr = schema.GroupVersionResource{Group: "core", Version: "v1", Resource: "configmaps"}
-	// pvcGvr       = schema.GroupVersionResource{Group: "core", Version: "v1", Resource: "persistentvolumeclaims"}
-
-	deploymentGvr        = schema.GroupVersionResource{Group: "apps", Version: "v1", Resource: "deployments"}
+	// all gvr of resource that need be collected.
+	serviceGvr           = corev1.SchemeGroupVersion.WithResource("services")
+	secretGvr            = corev1.SchemeGroupVersion.WithResource("secrets")
+	configmapGvr         = corev1.SchemeGroupVersion.WithResource("configmaps")
+	pvcGvr               = corev1.SchemeGroupVersion.WithResource("persistentvolumeclaims")
+	deploymentGvr        = appsv1.SchemeGroupVersion.WithResource("deployments")
 	overridePolicyGvr    = policyv1alpha1.SchemeGroupVersion.WithResource("overridepolicies")
 	propagationpolicyGvr = policyv1alpha1.SchemeGroupVersion.WithResource("propagationpolicies")
-
-	ClusterGvr = clusterv1alpha1.SchemeGroupVersion.WithResource("clusters")
+	clusterGvr           = clusterv1alpha1.SchemeGroupVersion.WithResource("clusters")
 
 	PolicyResources = []schema.GroupVersionResource{overridePolicyGvr, propagationpolicyGvr}
-
-	// TODO: corev1 resource
-	CoreResources = []schema.GroupVersionResource{}
+	CoreResources   = []schema.GroupVersionResource{serviceGvr, secretGvr, configmapGvr, pvcGvr}
 )
 
 type SummaryManager struct {
@@ -75,6 +69,13 @@ type SummaryManager struct {
 	close     chan struct{}
 }
 
+// NothingResourceEventHandler is a event handler that is notthing to do for informer.
+type NothingResourceEventHandler struct{}
+
+func (h *NothingResourceEventHandler) OnAdd(obj interface{})               {}
+func (h *NothingResourceEventHandler) OnDelete(obj interface{})            {}
+func (h *NothingResourceEventHandler) OnUpdate(oldObj, newObj interface{}) {}
+
 func NewSummaryManager(kmdName string, kmdClient versioned.Interface,
 	installStore installliter.KarmadaDeploymentLister, client dynamic.Interface) *SummaryManager {
 	manager := &SummaryManager{
@@ -84,22 +85,26 @@ func NewSummaryManager(kmdName string, kmdClient versioned.Interface,
 		close:        make(chan struct{}),
 	}
 
+	nothing := &NothingResourceEventHandler{}
 	manager.informerManager = informermanager.NewInformerManager(client, 0, manager.close)
+
+	// registry gvr of resource need be collect to dynamic informer. we only need to load thoes
+	// resource to memory and not need tirgger any event.
 	for _, gvr := range CoreResources {
-		if !manager.informerManager.IsHandlerExist(gvr, nil) {
-			manager.informerManager.ForResource(gvr, nil)
+		if !manager.informerManager.IsHandlerExist(gvr, nothing) {
+			manager.informerManager.ForResource(gvr, nothing)
 		}
 	}
 	for _, gvr := range PolicyResources {
-		if !manager.informerManager.IsHandlerExist(gvr, nil) {
-			manager.informerManager.ForResource(gvr, nil)
+		if !manager.informerManager.IsHandlerExist(gvr, nothing) {
+			manager.informerManager.ForResource(gvr, nothing)
 		}
 	}
-	if !manager.informerManager.IsHandlerExist(ClusterGvr, nil) {
-		manager.informerManager.ForResource(ClusterGvr, nil)
+	if !manager.informerManager.IsHandlerExist(clusterGvr, nothing) {
+		manager.informerManager.ForResource(clusterGvr, nothing)
 	}
-	if !manager.informerManager.IsHandlerExist(ClusterGvr, nil) {
-		manager.informerManager.ForResource(deploymentGvr, nil)
+	if !manager.informerManager.IsHandlerExist(deploymentGvr, nothing) {
+		manager.informerManager.ForResource(deploymentGvr, nothing)
 	}
 
 	return manager
@@ -116,7 +121,7 @@ func (m *SummaryManager) Run(shutdown <-chan struct{}) {
 		return
 	}
 
-	go wait.Until(m.worker, time.Second, m.close)
+	go wait.Until(m.worker, time.Second, shutdown)
 
 	go func() {
 		<-shutdown
@@ -126,6 +131,8 @@ func (m *SummaryManager) Run(shutdown <-chan struct{}) {
 	<-m.close
 }
 
+// worker is a loop to execute logic of collect resource. every time not to request
+// karmada apiserver and list resource from informer lister.
 func (m *SummaryManager) worker() {
 	for m.processNext() {
 		select {
@@ -150,8 +157,9 @@ func (m *SummaryManager) processNext() bool {
 		return true
 	}
 
+	kmdc := kmd.DeepCopy()
 	// init a sumary if the status of kmd is nil.
-	summary := kmd.Status.Summary
+	summary := kmdc.Status.Summary
 	if summary == nil {
 		summary = &installv1alpha1.KarmadaResourceSummary{
 			ResourceTotalNum: make(map[string]int32),
@@ -164,7 +172,7 @@ func (m *SummaryManager) processNext() bool {
 		return true
 	}
 
-	if err := m.updateKmdStatusSummaryIfNeed(kmd.DeepCopy(), summary); err != nil {
+	if err := m.updateKmdStatusSummaryIfNeed(kmd, summary); err != nil {
 		klog.Errorf("failed to update kmd %s summary, err: %v", m.kmdName, err)
 		return true
 	}
@@ -172,6 +180,8 @@ func (m *SummaryManager) processNext() bool {
 	return true
 }
 
+// updateKmdStatusSummaryIfNeed to update summary of kmd if need. if the numerical value is same with
+// current kmd summary. it will skip this updation.
 func (m *SummaryManager) updateKmdStatusSummaryIfNeed(kmd *installv1alpha1.KarmadaDeployment, summary *installv1alpha1.KarmadaResourceSummary) error {
 	if !equality.Semantic.DeepEqual(kmd.Status.Summary, summary) {
 		klog.V(2).Infof("Start to update kmd %s status summary", kmd.Name)
@@ -199,6 +209,7 @@ func (m *SummaryManager) syncHandler(summary *installv1alpha1.KarmadaResourceSum
 	return nil
 }
 
+// workLoadsSyncHandler to calculate workload sum.
 func (m *SummaryManager) workLoadsSyncHandler(summary *installv1alpha1.KarmadaResourceSummary) error {
 	// TODO: only collect deployment sum, we should support more workloads,
 	// e.g: sts, job, cornjob
@@ -212,7 +223,10 @@ func (m *SummaryManager) workLoadsSyncHandler(summary *installv1alpha1.KarmadaRe
 
 	var readyNum int32
 	for _, obj := range objs {
-		deploy := obj.(*appsv1.Deployment)
+		unstructured := obj.(*unstructured.Unstructured)
+
+		var deploy *appsv1.Deployment
+		runtime.DefaultUnstructuredConverter.FromUnstructured(unstructured.Object, &deploy)
 		if checkDeploymentReady(deploy.Status.Conditions) {
 			readyNum++
 		}
@@ -227,14 +241,14 @@ func (m *SummaryManager) workLoadsSyncHandler(summary *installv1alpha1.KarmadaRe
 }
 
 func (m *SummaryManager) clusterSyncHandler(summary *installv1alpha1.KarmadaResourceSummary) error {
-	clusterStore := m.informerManager.Lister(ClusterGvr)
+	clusterStore := m.informerManager.Lister(clusterGvr)
 	objs, err := clusterStore.List(labels.Everything())
 	if err != nil {
+		klog.ErrorS(err, "failed to list cluster from karmada apiserver")
 		return err
 	}
 
 	if len(objs) == 0 {
-		summary.ClusterSummary = &installv1alpha1.ClusterSummary{}
 		return nil
 	}
 

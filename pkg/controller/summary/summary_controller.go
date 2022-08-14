@@ -62,7 +62,7 @@ type SummaryController struct {
 	instalStoreSynced cache.InformerSynced
 	// To allow injection of syncKmdStatusResource for testing.
 	syncHandler func(kmdKey string) (bool, error)
-	manager     map[string]*SummaryManager
+	managers    map[string]*SummaryManager
 	waitGroup   wait.Group
 }
 
@@ -73,7 +73,7 @@ func NewController(client clientset.Interface, kmdClient versioned.Interface, km
 		queue: workqueue.NewRateLimitingQueue(
 			workqueue.NewItemExponentialFailureRateLimiter(DefaultKmdBackOff, MaxKmdBackOff),
 		),
-		manager: make(map[string]*SummaryManager),
+		managers: make(map[string]*SummaryManager),
 	}
 
 	kmdInformer.Informer().AddEventHandler(
@@ -242,25 +242,28 @@ func (rc *SummaryController) syncKmdStatusResource(key string) (bool, error) {
 	return true, nil
 }
 
+// removekarmadaDeployment shut down manager of the kmd as soon as remove it.
+// and then remove the manager from the list of manager.
 func (rc *SummaryController) removekarmadaDeployment(kmd *installv1alpha1.KarmadaDeployment) error {
 	rc.Lock()
 	defer rc.Unlock()
-	manager := rc.manager[kmd.Name]
+	manager := rc.managers[kmd.Name]
 	if manager == nil {
 		return nil
 	}
 
 	manager.Shuntdown()
 
-	delete(rc.manager, kmd.Name)
+	delete(rc.managers, kmd.Name)
 	return nil
 }
 
+// GetSummaryManager get a manager form list. it will create manager for kmd if it's not in list.
 func (rc *SummaryController) GetSummaryManager(kmd *installv1alpha1.KarmadaDeployment) (*SummaryManager, error) {
 	manager := func() *SummaryManager {
 		rc.RLock()
 		defer rc.RUnlock()
-		return rc.manager[kmd.Name]
+		return rc.managers[kmd.Name]
 	}()
 
 	if manager != nil {
@@ -270,7 +273,7 @@ func (rc *SummaryController) GetSummaryManager(kmd *installv1alpha1.KarmadaDeplo
 	rc.Lock()
 	defer rc.Unlock()
 
-	manager, exist := rc.manager[kmd.Name]
+	manager, exist := rc.managers[kmd.Name]
 	if exist {
 		return manager, nil
 	}
@@ -280,7 +283,7 @@ func (rc *SummaryController) GetSummaryManager(kmd *installv1alpha1.KarmadaDeplo
 	}
 
 	manager = NewSummaryManager(kmd.Name, rc.kmdClient, rc.installStore, dynamicClient)
-	rc.manager[kmd.Name] = manager
+	rc.managers[kmd.Name] = manager
 
 	return manager, nil
 }

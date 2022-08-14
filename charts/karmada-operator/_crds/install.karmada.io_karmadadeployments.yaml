@@ -164,7 +164,7 @@ spec:
                     type: string
                   serviceType:
                     description: ServiceType represents the sevice type of karmada
-                      apiserver. it is Nodeport by defautl.
+                      apiserver. it is Nodeport by default.
                     type: string
                 type: object
               images:
