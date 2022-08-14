@@ -87,7 +87,6 @@ karmada-operator: $(SOURCES)
 .PHONY: upload-image
 upload-image: karmada-operator-imgs
 	@echo "push images to $(REGISTRY_REPO)"
-	docker login -u ${REGISTRY_USER_NAME} -p ${REGISTRY_PASSWORD} ${REGISTRY_SERVER_ADDRESS}
 	@docker push $(REGISTRY_REPO)/karmada-operator:$(KARMADA_OPERATOR_IMAGE_VERSION)
 	@docker push $(REGISTRY_REPO)/karmada-operator:latest
 
