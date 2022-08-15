@@ -157,22 +157,14 @@ func (m *SummaryManager) processNext() bool {
 		return true
 	}
 
-	kmdc := kmd.DeepCopy()
 	// init a sumary if the status of kmd is nil.
-	summary := kmdc.Status.Summary
-	if summary == nil {
-		summary = &installv1alpha1.KarmadaResourceSummary{
-			ResourceTotalNum: make(map[string]int32),
-			PolicyTotalNum:   make(map[string]int32),
-		}
-	}
-
+	summary := &installv1alpha1.KarmadaResourceSummary{}
 	if err := m.syncHandler(summary); err != nil {
 		klog.Errorf("failed to sync kmd %s summary, err: %v", m.kmdName, err)
 		return true
 	}
 
-	if err := m.updateKmdStatusSummaryIfNeed(kmd, summary); err != nil {
+	if err := m.updateKmdStatusSummaryIfNeed(kmd.DeepCopy(), summary); err != nil {
 		klog.Errorf("failed to update kmd %s summary, err: %v", m.kmdName, err)
 		return true
 	}
@@ -225,15 +217,17 @@ func (m *SummaryManager) workLoadsSyncHandler(summary *installv1alpha1.KarmadaRe
 	for _, obj := range objs {
 		unstructured := obj.(*unstructured.Unstructured)
 
-		var deploy *appsv1.Deployment
+		var deploy appsv1.Deployment
 		runtime.DefaultUnstructuredConverter.FromUnstructured(unstructured.Object, &deploy)
 		if checkDeploymentReady(deploy.Status.Conditions) {
 			readyNum++
 		}
 	}
+
+	totalNum := int32(len(objs))
 	workLoadSummary[deploymentGvr.Resource] = installv1alpha1.NumStatistic{
-		TotalNum: int32(len(objs)),
-		ReadyNum: readyNum,
+		TotalNum: &totalNum,
+		ReadyNum: &readyNum,
 	}
 
 	summary.WorkLoadSummary = workLoadSummary
@@ -263,13 +257,16 @@ func (m *SummaryManager) clusterSyncHandler(summary *installv1alpha1.KarmadaReso
 	}
 
 	for _, obj := range objs {
-		cluster := obj.(*clusterv1alpha1.Cluster)
+		unstructured := obj.(*unstructured.Unstructured)
+
+		var cluster clusterv1alpha1.Cluster
+		runtime.DefaultUnstructuredConverter.FromUnstructured(unstructured.Object, &cluster)
 
 		csns := cluster.Status.NodeSummary
 		if csns != nil {
 			nodeSummary.ClusterNodeSummary[cluster.Name] = installv1alpha1.NumStatistic{
-				TotalNum: csns.TotalNum,
-				ReadyNum: csns.ReadyNum,
+				TotalNum: &csns.TotalNum,
+				ReadyNum: &csns.ReadyNum,
 			}
 		}
 
@@ -296,6 +293,13 @@ func (m *SummaryManager) clusterSyncHandler(summary *installv1alpha1.KarmadaReso
 }
 
 func (m *SummaryManager) sumSyncHandler(summary *installv1alpha1.KarmadaResourceSummary) error {
+	if summary.ResourceTotalNum == nil {
+		summary.ResourceTotalNum = make(map[string]int32, len(CoreResources))
+	}
+	if summary.PolicyTotalNum == nil {
+		summary.PolicyTotalNum = make(map[string]int32, len(PolicyResources))
+	}
+
 	// calculate the total number of services.
 	for _, gvr := range CoreResources {
 		coreStore := m.informerManager.Lister(gvr)
@@ -340,11 +344,14 @@ func (m *SummaryManager) Shuntdown() {
 }
 
 func aggregateNodeSummary(nodeSummary *installv1alpha1.NodeSummary) *installv1alpha1.NodeSummary {
+	var readyNum, totalNum int32
 	for _, ns := range nodeSummary.ClusterNodeSummary {
-		nodeSummary.ReadyNum += ns.ReadyNum
-		nodeSummary.TotalNum += ns.TotalNum
+		readyNum += *ns.ReadyNum
+		totalNum += *ns.TotalNum
 	}
 
+	nodeSummary.ReadyNum = &readyNum
+	nodeSummary.TotalNum = &totalNum
 	return nodeSummary
 }
 
@@ -374,8 +381,9 @@ func aggregateClusterSummary(clusterSummary *installv1alpha1.ClusterSummary) *in
 		}
 	}
 
-	clusterSummary.ReadyNum = readyNum
-	clusterSummary.TotalNum = int32(len(clusterSummary.ClusterConditions))
+	totalNum := int32(len(clusterSummary.ClusterConditions))
+	clusterSummary.ReadyNum = &readyNum
+	clusterSummary.TotalNum = &totalNum
 	return clusterSummary
 }
 
