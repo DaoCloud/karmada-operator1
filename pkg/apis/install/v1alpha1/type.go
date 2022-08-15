@@ -337,11 +337,11 @@ type ResourceStatistic struct {
 type NumStatistic struct {
 	// TotalNum represents the total number of resource of member cluster.
 	// +optional
-	TotalNum int32 `json:"totalNum,omitempty"`
+	TotalNum *int32 `json:"totalNum,omitempty"`
 
 	// ReadyNum represents the resource in ready state.
 	// +optional
-	ReadyNum int32 `json:"readyNum,omitempty"`
+	ReadyNum *int32 `json:"readyNum,omitempty"`
 }
 
 // WorkloadSummary represents the summary of workload state in a specific cluster.
