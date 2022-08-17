@@ -43,6 +43,8 @@ const (
 	// maximum retry times.
 	MaxInstallSyncRetry = 5
 	ControllerFinalizer = "karmada.install.io/installer-controller"
+	// DisableCascadingDeletionLabel is the label that determine whether to perform cascade deletion
+	DisableCascadingDeletionLabel = "karmada.install.io/disable-cascading-deletion"
 )
 
 type Controller struct {
@@ -64,8 +66,8 @@ type Controller struct {
 func NewController(kmdClient versioned.Interface,
 	client clientset.Interface,
 	chartResource *helminstaller.ChartResource,
-	karmadaDeploymentInformer installinformers.KarmadaDeploymentInformer) *Controller {
-
+	karmadaDeploymentInformer installinformers.KarmadaDeploymentInformer,
+) *Controller {
 	controller := &Controller{
 		kmdClient:         kmdClient,
 		clientset:         client,
@@ -192,13 +194,18 @@ func (c *Controller) syncHandler(key string) (err error) {
 		}
 		return err
 	}
-
+	err = c.initDefaultValues(kmd)
+	if err != nil {
+		klog.Errorf("failed to init karmadaDeployment default value : %v", err)
+		return err
+	}
 	if !kmd.DeletionTimestamp.IsZero() {
-		klog.InfoS("remove karmadaDeployment", "karmadaDeployment", kmd.Name)
-		if err := c.factory.SyncWithAction(kmd, factory.UninstallAction); err != nil {
-			return err
+		if kmd.GetLabels()[DisableCascadingDeletionLabel] == "false" {
+			klog.InfoS("remove karmadaDeployment and karmada instance", "karmadaDeployment", kmd.Name)
+			if err := c.factory.SyncWithAction(kmd, factory.UninstallAction); err != nil {
+				return err
+			}
 		}
-
 		controllerutil.ContainsFinalizer(kmd.DeepCopy(), ControllerFinalizer)
 		_ = controllerutil.RemoveFinalizer(kmd, ControllerFinalizer)
 		if _, err := c.kmdClient.InstallV1alpha1().KarmadaDeployments().Update(context.TODO(), kmd, metav1.UpdateOptions{}); err != nil {
@@ -206,13 +213,34 @@ func (c *Controller) syncHandler(key string) (err error) {
 		}
 		return nil
 	}
+	return c.factory.Sync(kmd)
+}
+
+// initDefaultValues init karmadaDeployment default value
+func (c *Controller) initDefaultValues(kmd *installv1alpha1.KarmadaDeployment) error {
+	var err error
+	isUpdate := false
+	// add default label karmadadeployments.install.karmada.io/disable-cascading-deletion:true
+	if kmd.GetLabels() == nil {
+		kmd.SetLabels(make(map[string]string))
+	}
+	kmdLabels := kmd.GetLabels()
+	if _, isExist := kmdLabels[DisableCascadingDeletionLabel]; !isExist {
+		kmdLabels[DisableCascadingDeletionLabel] = "true"
+		kmd.SetLabels(kmdLabels)
+		isUpdate = true
+	}
 	// ensure finalizer
-	if !controllerutil.ContainsFinalizer(kmd, ControllerFinalizer) {
+	if !controllerutil.ContainsFinalizer(kmd, ControllerFinalizer) && kmd.DeletionTimestamp.IsZero() {
 		_ = controllerutil.AddFinalizer(kmd, ControllerFinalizer)
-		if kmd, err = c.kmdClient.InstallV1alpha1().KarmadaDeployments().Update(context.TODO(), kmd, metav1.UpdateOptions{}); err != nil {
+		isUpdate = true
+	}
+	if isUpdate {
+		kmd, err = c.kmdClient.InstallV1alpha1().KarmadaDeployments().Update(context.TODO(), kmd, metav1.UpdateOptions{})
+		if err != nil {
 			return err
 		}
 	}
 
-	return c.factory.Sync(kmd)
+	return nil
 }
