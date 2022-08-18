@@ -25,6 +25,7 @@ import (
 	installv1alpha1 "github.com/daocloud/karmada-operator/pkg/apis/install/v1alpha1"
 	"github.com/daocloud/karmada-operator/pkg/generated/clientset/versioned"
 	helminstaller "github.com/daocloud/karmada-operator/pkg/installer/helm"
+	"github.com/daocloud/karmada-operator/pkg/status"
 )
 
 type Interface interface {
@@ -61,6 +62,8 @@ const (
 func (factory *InstallerFactory) SyncWithAction(kmd *installv1alpha1.KarmadaDeployment, action Action) error {
 	installer, err := factory.GetInstaller(kmd)
 	if err != nil {
+		kmd = installv1alpha1.KarmadaDeploymentNotReady(kmd, installv1alpha1.IntallModeFailedReason, err.Error())
+		status.SetStatus(factory.kmdClient, kmd)
 		return err
 	}
 
@@ -81,8 +84,19 @@ func (factory *InstallerFactory) SyncWithAction(kmd *installv1alpha1.KarmadaDepl
 }
 
 func (factory *InstallerFactory) Sync(kmd *installv1alpha1.KarmadaDeployment) error {
+	// Observe KarmadaDeployment generation.
+	if kmd.Status.ObservedGeneration != kmd.Generation {
+		kmd.Status.ObservedGeneration = kmd.Generation
+		kmd = installv1alpha1.KarmadaDeploymentProgressing(kmd)
+		status.SetStatus(factory.kmdClient, kmd)
+	}
 	// TODO: automatically calculate the action
-	return factory.SyncWithAction(kmd, InstallAction)
+	err := factory.SyncWithAction(kmd, InstallAction)
+	if err == nil {
+		kmd = installv1alpha1.KarmadaDeploymentReady(kmd)
+		return status.SetStatus(factory.kmdClient, kmd)
+	}
+	return err
 }
 
 func (factory *InstallerFactory) GetInstaller(kmd *installv1alpha1.KarmadaDeployment) (Interface, error) {
@@ -93,6 +107,9 @@ func (factory *InstallerFactory) GetInstaller(kmd *installv1alpha1.KarmadaDeploy
 		installer, err = helminstaller.NewHelmInstaller(kmd, factory.kmdClient, factory.clientset, factory.chartResource)
 	case installv1alpha1.KarmadactlMode:
 		// TODO: karmadactl installer
+		return nil, fmt.Errorf("the %s install mode is unimplemented", *kmd.Spec.Mode)
+	default:
+		return nil, fmt.Errorf("unknown install mode: %s", *kmd.Spec.Mode)
 	}
 
 	if err != nil {

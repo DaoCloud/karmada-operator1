@@ -241,6 +241,5 @@ func (c *Controller) initDefaultValues(kmd *installv1alpha1.KarmadaDeployment) e
 			return err
 		}
 	}
-
 	return nil
 }
