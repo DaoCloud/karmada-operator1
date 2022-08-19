@@ -118,8 +118,6 @@ ok, karmada installation is complete.
 
 karmada-operator supports creating multiple karmadaDeployment instances in the same cluster,You can deploy multiple karmada instances multiple times using the `cr` of KarmadaDeployment with different content.
 
-> **Tip**:
-
 List multiple KarmadaDeployments：
 
 ```shell
@@ -191,7 +189,7 @@ Currently you need to download karmadactl to join cluster
 
 Karmada provides `kubectl-karmada` plug-in download service since v1.2.1. You can choose proper plug-in version which fits your operator system form [karmada release](https://github.com/karmada-io/karmada/releases).
 
-Take v1.2.1 that working with linux-amd64 os as an example:
+Take v1.2.1 that working with linux-arm64 os as an example:
 
 ```shell
 $ wget https://github.com/karmada-io/karmada/releases/download/v1.2.1/karmadactl-linux-arm64.tgz
@@ -280,17 +278,42 @@ nginx   2/2     2            2           20s
 | `controllerManager.kubeconfigPath`    | kubeconfig Path of the karmada-operator-controller-manager   | `"/root/.kube"`                                          |
 | `controllerManager.localKubeconfig`   | Image registry of the karmada-operator-controller-manager    | `"true"`                                                 |
 
-## Uninstalling the Chart
+## Uninstalling
+
+### Uninstalling the KarmadaDeployment
+
+Deleting karmadaDeployment is a dangerous operation and needs to be deleted carefully. Please delete it according to the following process.
+
+#### Only Delete KarmadaDeployment CR
+
+When you want to remove CR but keep the instance on the environment，you can execute the following command
+
+```shell
+$ kubectl delete kmd demo-kmd -n demo-kmd
+```
+
+#### Delete KarmadaDeployment CR and Instance
+
+When you want to remove CR and the instance in your environment，you can execute the following command
+
+```shell
+# enable cascade delete label
+$ kubectl label --overwrite kmd demo-kmd karmada.install.io/disable-cascading-deletion="false"
+# cascade delete KarmadaDeployment
+$ kubectl delete kmd demo-kmd -n demo-kmd
+```
+
+### Uninstalling the Karmada-Operator
 
 To uninstall/delete the `karmada-operator` helm release in namespace `karmada-operator-system`:
 
-```console
+```shell
 helm uninstall karmada-operator -n karmada-operator-system
 ```
 
 The command removes all the Kubernetes components associated with the chart and deletes the release.
 
-```console
+```shell
 kubectl delete ns karmada-operator-system
 ```
 
