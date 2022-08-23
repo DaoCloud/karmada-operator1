@@ -6,6 +6,7 @@ env:
   KIND_VERSION: v0.14.0
   KIND_NODE_IMAGE: kindest/node:v1.23.4
   K8S_VERSION: v1.23.4
+  DEFAULT_BRANCH: main
 
 on:
   push:
@@ -47,13 +48,15 @@ jobs:
       - name: Run chart-testing (list-changed)
         id: list-changed
         run: |
-          changed=$( ct list-changed )
+          # https://github.com/helm/chart-testing-action/issues/25
+          # if the default branch is not master , the CLI exits with error
+          changed=$( ct list-changed --target-branch ${{ env.DEFAULT_BRANCH }}  )
           if [[ -n "$changed" ]]; then
             echo "::set-output name=changed::true"
           fi
 
       - name: Run chart-testing (lint)
-        run: ct lint --debug --check-version-increment=false
+        run: ct lint --debug --target-branch=${{ env.DEFAULT_BRANCH }} --check-version-increment=false
 
       - name: Create kind cluster
         uses: helm/kind-action@v1.2.0
@@ -65,4 +68,4 @@ jobs:
           kubectl_version: ${{ env.K8S_VERSION }}
 
       - name: Run chart-testing (install)
-        run: ct install --debug --helm-extra-args "--timeout 400s"
+        run: ct install --debug --target-branch ${{ env.DEFAULT_BRANCH }} --helm-extra-args "--timeout 400s"
