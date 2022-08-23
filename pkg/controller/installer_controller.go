@@ -226,7 +226,7 @@ func (c *Controller) initDefaultValues(kmd *installv1alpha1.KarmadaDeployment) e
 	}
 	kmdLabels := kmd.GetLabels()
 	if _, isExist := kmdLabels[DisableCascadingDeletionLabel]; !isExist {
-		kmdLabels[DisableCascadingDeletionLabel] = "true"
+		kmdLabels[DisableCascadingDeletionLabel] = "false"
 		kmd.SetLabels(kmdLabels)
 		isUpdate = true
 	}
