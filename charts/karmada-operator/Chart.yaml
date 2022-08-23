@@ -23,6 +23,13 @@ version: 0.0.6
 # It is recommended to use it with quotes.
 appVersion: "0.0.6"
 
+sources:
+  - "https://github.com/DaoCloud/karmada-operator"
+
+maintainers:
+  - name: DaoCloud
+    url: https://github.com/DaoCloud
+
 # This is karmada operator dependencies
 dependencies:
   - name: common
