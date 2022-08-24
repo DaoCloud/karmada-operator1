@@ -18,6 +18,7 @@ package helm
 
 import (
 	"context"
+	"errors"
 	"fmt"
 	"io/ioutil"
 	"os"
@@ -81,7 +82,12 @@ func NewHelmInstaller(kmd *installv1alpha1.KarmadaDeployment, kmdClient versione
 		if err != nil {
 			return nil, err
 		}
-		kubeconfig = secret.Data["kubeconfig"]
+		var exist bool
+		kubeconfig, exist = secret.Data["kubeconfig"]
+		if !exist {
+			return nil, errors.New("secret format error")
+		}
+
 		config, err = BuildClusterKubeconfig(kubeconfig)
 		if err != nil {
 			return nil, err
