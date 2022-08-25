@@ -289,6 +289,9 @@ Deleting karmadaDeployment is a dangerous operation and needs to be deleted care
 When you want to remove CR but keep the instance on the environment，you can execute the following command
 
 ```shell
+# patch disable-cascading-deletion label
+$ kubectl label --overwrite kmd demo-kmd karmada.install.io/disable-cascading-deletion="true"
+# disable cascade delete KarmadaDeployment
 $ kubectl delete kmd demo-kmd -n demo-kmd
 ```
 
@@ -297,8 +300,6 @@ $ kubectl delete kmd demo-kmd -n demo-kmd
 When you want to remove CR and the instance in your environment，you can execute the following command
 
 ```shell
-# enable cascade delete label
-$ kubectl label --overwrite kmd demo-kmd karmada.install.io/disable-cascading-deletion="false"
 # cascade delete KarmadaDeployment
 $ kubectl delete kmd demo-kmd -n demo-kmd
 ```
