@@ -236,6 +236,10 @@ const (
 )
 
 type KarmadaDeploymentStatus struct {
+	// ObservedGeneration is the last observed generation.
+	// +optional
+	ObservedGeneration int64 `json:"observedGeneration,omitempty"`
+
 	// the karmada installtion phase, must be enum type.
 	// +required
 	Phase Phase `json:"phase,omitempty"`
@@ -257,7 +261,7 @@ type KarmadaDeploymentStatus struct {
 	Summary *KarmadaResourceSummary `json:"summary,omitempty"`
 
 	// Conditions represents the latest available observations of a karmadaDeployment's current state.
-	Conditions []Condition `json:"conditions,omitempty"`
+	Conditions []metav1.Condition `json:"conditions,omitempty"`
 }
 
 // KarmadaResourceSummary specifies some resource totals for the karmada control plane
@@ -352,43 +356,6 @@ type WorkloadSummary struct {
 	// ClusterWorkload represent cluster
 	// +optional
 	ClusterWorkload map[string]NumStatistic `json:"clusterWorkload,omitempty"`
-}
-
-// +enum
-type ConditionType string
-
-const (
-	FetchChartedConditionType      ConditionType = "FetchCharted"
-	PodReadyConditionType          ConditionType = "PodReady"
-	ControlPlaneReadyConditionType ConditionType = "ControlPlaneReady"
-)
-
-type Condition struct {
-	// +required
-	// +kubebuilder:validation:Required
-	// +kubebuilder:validation:Enum=FetchCharted;PodReady;ControlPlaneReady
-	Type ConditionType `json:"type"`
-
-	// Status of the condition, one of True, False, Unknown.
-	// +required
-	// +kubebuilder:validation:Required
-	Status corev1.ConditionStatus `json:"status"`
-
-	// +required
-	// +kubebuilder:validation:Required
-	// +kubebuilder:validation:Type=string
-	// +kubebuilder:validation:Format=date-time
-	LastTransitionTime metav1.Time `json:"lastTransitionTime"`
-
-	// Reason is a brief machine readable explanation for the condition's
-	// last transition.
-	// +optional
-	Reason string `json:"reason,omitempty"`
-
-	// Message is a human readable description of the details of the last
-	// transition, complementing reason.
-	// +optional
-	Message string `json:"message,omitempty"`
 }
 
 // LocalSecretReference is a reference to a secret within the enclosing
