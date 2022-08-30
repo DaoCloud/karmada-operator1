@@ -112,8 +112,8 @@ func (c *Controller) Run(workers int, stopCh <-chan struct{}) {
 	c.runLock.Lock()
 	defer c.runLock.Unlock()
 
-	klog.Infof("Start karmadaDeployment operator")
-	defer klog.Infof("Shutting down karmadaDeployment operator")
+	klog.InfoS("Start karmadaDeployment operator")
+	defer klog.InfoS("Shutting down karmadaDeployment operator")
 
 	if c.stopCh != nil {
 		return

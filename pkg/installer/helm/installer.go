@@ -95,7 +95,7 @@ func NewHelmInstaller(kmd *installv1alpha1.KarmadaDeployment, kmdClient versione
 	}
 	kubeconfigPath, err := WriteKubeconfig(kubeconfig, kmd.Name)
 	if err != nil {
-		klog.Errorf("[helm-installer]:failed to write the kubeconfig to directory %s for %s: %w:", kubeconfigPath, kmd.Name, err)
+		klog.ErrorS(err, "[helm-installer]:failed to write the kubeconfig to directory", "path", kubeconfigPath, "kmd", kmd.Name)
 		return nil, err
 	}
 	klog.V(5).Info("[helm-installer]:the endpoint kubeconfig info: %s", string(kubeconfig))
@@ -147,7 +147,7 @@ func BuildClusterKubeconfig(kubeconfig []byte) (*rest.Config, error) {
 	klog.V(5).Infof("kubeconfig data: %s", string(kubeconfig))
 	config, err := clientcmd.NewClientConfigFromBytes(kubeconfig)
 	if err != nil {
-		klog.Errorf("[helm-installer]:failed to build the target install cluster kubeconfig, please check the secret: %w:", err)
+		klog.ErrorS(err, "[helm-installer]:failed to build the target install cluster kubeconfig, please check the secret")
 		return nil, err
 	}
 	return config.ClientConfig()

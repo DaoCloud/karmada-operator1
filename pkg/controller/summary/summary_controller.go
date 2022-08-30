@@ -130,8 +130,8 @@ func (rc *SummaryController) Run(workers int, stopCh <-chan struct{}) {
 	defer utilruntime.HandleCrash()
 	defer rc.queue.ShutDown()
 
-	klog.Infof("Start karmadaDeployment summary controller")
-	defer klog.Infof("Shutting down karmadaDeployment summary controller")
+	klog.InfoS("Start karmadaDeployment summary controller")
+	defer klog.InfoS("Shutting down karmadaDeployment summary controller")
 
 	if rc.stopCh != nil {
 		return
@@ -154,9 +154,9 @@ func (rc *SummaryController) Run(workers int, stopCh <-chan struct{}) {
 
 	<-stopCh
 
-	klog.Info("wait for cluster synchros stop...")
+	klog.InfoS("wait for cluster synchros stop...")
 	rc.waitGroup.Wait()
-	klog.Info("cluster synchro manager stoped.")
+	klog.InfoS("cluster synchro manager stoped.")
 }
 
 func (rc *SummaryController) worker() {
