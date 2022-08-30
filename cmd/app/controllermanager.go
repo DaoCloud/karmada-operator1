@@ -98,7 +98,7 @@ func NewControllerManagerCommand() *cobra.Command {
 
 func Run(c *config.CompletedConfig, stopCh <-chan struct{}) error {
 	// To help debugging, immediately log version
-	klog.Infof("Version: %+v", version.Get())
+	klog.InfoS("Operator Version", "version", version.Get())
 	klog.InfoS("Golang settings", "GOGC", os.Getenv("GOGC"), "GOMAXPROCS", os.Getenv("GOMAXPROCS"), "GOTRACEBACK", os.Getenv("GOTRACEBACK"))
 
 	if !c.LeaderElection.LeaderElect {
@@ -141,7 +141,7 @@ func Run(c *config.CompletedConfig, stopCh <-chan struct{}) error {
 				_ = StartControllers(c, stopCh)
 			},
 			OnStoppedLeading: func() {
-				klog.Info("leaderelection lost")
+				klog.InfoS("leaderelection lost")
 			},
 		},
 	})

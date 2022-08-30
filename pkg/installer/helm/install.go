@@ -110,7 +110,7 @@ func (install *installWorkflow) Install(kmd *installv1alpha1.KarmadaDeployment) 
 }
 
 func (install *installWorkflow) Preflight(kmd *installv1alpha1.KarmadaDeployment) error {
-	klog.Infof("[helm-installer]:start proflight phase for %s", kmd.Name)
+	klog.InfoS("[helm-installer] start proflight phase", "kmd", kmd.Name)
 
 	// set default values to kmd.
 	SetDefault(kmd)
@@ -122,7 +122,7 @@ func (install *installWorkflow) Preflight(kmd *installv1alpha1.KarmadaDeployment
 
 	install.chartPath, _, err = fetchChart(install.helmClient, install.chartResource)
 	if err != nil {
-		klog.Errorf("[helm-installer]:failed to fetch karmada chart pkg: %v", err)
+		klog.ErrorS(err, "[helm-installer]:failed to fetch karmada chart pkg")
 		kmd = installv1alpha1.KarmadaDeploymentNotReady(kmd, installv1alpha1.HelmChartFailedReason, err.Error())
 		status.SetStatus(install.kmdClient, kmd)
 		return err
@@ -132,7 +132,7 @@ func (install *installWorkflow) Preflight(kmd *installv1alpha1.KarmadaDeployment
 		values := Compose(kmd)
 		IPs, err := utils.GetKubeMasterIP(install.client)
 		if err != nil {
-			klog.Errorf("[helm-installer]:failed get ips of kubenetes master node, err:", err)
+			klog.ErrorS(err, "[helm-installer]:failed get ips of kubenetes master node")
 		}
 
 		SetChartDefaultValues(values, kmd.Spec.ControlPlane.Namespace, IPs)
@@ -185,7 +185,7 @@ func (c ChartResource) CleanRepoURL() string {
 }
 
 func (install *installWorkflow) Deploy(kmd *installv1alpha1.KarmadaDeployment) error {
-	klog.Infof("[helm-installer]:start deploy phase for %s", kmd.Name)
+	klog.InfoS("[helm-installer]:start deploy phase", "kmd", kmd.Name)
 
 	if err := status.SetStatusPhase(install.kmdClient, kmd, installv1alpha1.DeployingPhase); err != nil {
 		return err
@@ -208,7 +208,7 @@ func (install *installWorkflow) Deploy(kmd *installv1alpha1.KarmadaDeployment) e
 	klog.V(5).Infof("chart values.ymal:\n%s", values)
 
 	if err != nil {
-		klog.Errorf("[helm-installer]:failed to compose chart values: %v", err)
+		klog.ErrorS(err, "[helm-installer]:failed to compose chart values")
 		kmd = installv1alpha1.KarmadaDeploymentNotReady(kmd, installv1alpha1.HelmInitFailedReason, err.Error())
 		status.SetStatus(install.kmdClient, kmd)
 		return err
@@ -227,7 +227,7 @@ func (install *installWorkflow) Deploy(kmd *installv1alpha1.KarmadaDeployment) e
 		})
 
 	if err != nil && !strings.Contains(err.Error(), ReleaseExistErrMsg) {
-		klog.Errorf("[helm-installer]:failed to install karmada chart for %s: %v", kmd.Name, err)
+		klog.ErrorS(err, "[helm-installer]:failed to install karmada chart", "kmd", kmd.Name)
 		kmd = installv1alpha1.KarmadaDeploymentNotReady(kmd, installv1alpha1.HelmReleaseFailedReason, err.Error())
 		status.SetStatus(install.kmdClient, kmd)
 		return err
@@ -238,7 +238,7 @@ func (install *installWorkflow) Deploy(kmd *installv1alpha1.KarmadaDeployment) e
 	if len(install.values.Components) > 0 {
 		values, err := install.values.ValuesWithComponentInstallMode()
 		if err != nil {
-			klog.Errorf("[helm-installer]:failed to compose chart values: %v", err)
+			klog.ErrorS(err, "[helm-installer]:failed to compose chart values")
 			kmd = installv1alpha1.KarmadaDeploymentNotReady(kmd, installv1alpha1.HelmInitFailedReason, err.Error())
 			install.kmdClient.InstallV1alpha1().KarmadaDeployments().UpdateStatus(context.Background(), kmd, metav1.UpdateOptions{})
 			return err
@@ -256,7 +256,7 @@ func (install *installWorkflow) Deploy(kmd *installv1alpha1.KarmadaDeployment) e
 				DisableValidation: true,
 			})
 		if err != nil {
-			klog.Errorf("[helm-installer]:failed to install karmada component for %s: %v", kmd.Name, err)
+			klog.ErrorS(err, "[helm-installer]:failed to install karmada component", "kmd", kmd.Name)
 			kmd = installv1alpha1.KarmadaDeploymentNotReady(kmd, installv1alpha1.HelmReleaseFailedReason, err.Error())
 			status.SetStatus(install.kmdClient, kmd)
 			return err
@@ -267,7 +267,7 @@ func (install *installWorkflow) Deploy(kmd *installv1alpha1.KarmadaDeployment) e
 }
 
 func (install *installWorkflow) Wait(kmd *installv1alpha1.KarmadaDeployment) error {
-	klog.Infof("[helm-installer]:start wait phase for %s", kmd.Name)
+	klog.InfoS("[helm-installer]:start wait phase", "kmd", kmd.Name)
 	release, err := install.GetRelease(kmd)
 	if err != nil {
 		kmd = installv1alpha1.KarmadaDeploymentNotReady(kmd, installv1alpha1.HelmReleaseFailedReason, err.Error())
@@ -283,7 +283,7 @@ func (install *installWorkflow) Wait(kmd *installv1alpha1.KarmadaDeployment) err
 	karmadaApiserver := fmt.Sprintf("%s-karmada-apiserver", release.Name)
 	for _, m := range []string{karmadaApiserver, "etcd"} {
 		if _, err := waitForPodReady(install.client, release.Namespace, m); err != nil {
-			klog.Errorf("[helm-installer]:failed to wait %s to ready: %v", m, err)
+			klog.ErrorS(err, "[helm-installer]:failed to wait ready", "component", m, "namespace", release.Namespace)
 			kmd = installv1alpha1.KarmadaDeploymentNotReady(kmd, installv1alpha1.ReconciliationFailedReason, err.Error())
 			status.SetStatus(install.kmdClient, kmd)
 			return err
@@ -338,7 +338,7 @@ func waitForPodReady(client clientset.Interface, namespace, deploymentName strin
 }
 
 func (install *installWorkflow) Completed(kmd *installv1alpha1.KarmadaDeployment) error {
-	klog.Infof("[helm-installer]:start completed phase for %s", kmd.Name)
+	klog.InfoS("[helm-installer]:start completed phase", "kmd", kmd.Name)
 	release, err := install.GetRelease(kmd)
 	if err != nil {
 		return err
@@ -365,11 +365,11 @@ func (install *installWorkflow) Completed(kmd *installv1alpha1.KarmadaDeployment
 		// the karmada version is by default.
 		version, err := GetKarmadaVersion(configByte)
 		if err != nil {
-			klog.Errorf("[helm-installer]:failed get karmada version, err: %v", err)
+			klog.ErrorS(err, "[helm-installer]:failed get karmada version")
 		}
 
 		kmd.Status.KubernetesVersion = version.String()
-		klog.Info("[helm-installer]:success install karmada release, version:", version.String())
+		klog.InfoS("[helm-installer]:success install karmada release", "version", version.String())
 	}
 
 	// TODO: How to get the karmada version?
@@ -377,7 +377,7 @@ func (install *installWorkflow) Completed(kmd *installv1alpha1.KarmadaDeployment
 
 	secretCopy, err := CreateSecretForExternalKubeconfig(install.client, configByte, kmd)
 	if err != nil {
-		klog.Errorf("[helm-installer]:failed create secret for external kubeconfig, err:", err)
+		klog.ErrorS(err, "[helm-installer]:failed create secret for external kubeconfig")
 		return err
 	}
 
@@ -420,7 +420,7 @@ func (install *installWorkflow) BuildExtetnalKubeconfig(internalConfig []byte) (
 
 	port, err := install.ServicePort()
 	if err != nil {
-		klog.Errorf("failed to get karmada apiserver service port.")
+		klog.ErrorS(err, "failed to get karmada apiserver service port.")
 		return nil, err
 	}
 

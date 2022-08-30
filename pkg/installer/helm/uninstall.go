@@ -54,11 +54,11 @@ func NewUninstallWorkflow(client clientset.Interface, destClient clientset.Inter
 
 func (un *uninstallWorkflow) Uninstall(kmd *installv1alpha1.KarmadaDeployment) error {
 	if err := un.UninstallComponent(kmd); err != nil {
-		klog.Errorf("[helm-installer]:failed to uninstall karmada componnets for %s", kmd.Name)
+		klog.ErrorS(err, "[helm-installer]:failed to uninstall karmada componnets", "kmd", kmd.Name)
 		return err
 	}
 
-	klog.Infof("[helm-installer]:start uninstall phase for %s", kmd.Name)
+	klog.InfoS("[helm-installer]:start uninstall phase", "kmd", kmd.Name)
 	release, err := GetRelease(un.helmClient, kmd)
 	if err != nil {
 		return err
@@ -77,7 +77,7 @@ func (un *uninstallWorkflow) Uninstall(kmd *installv1alpha1.KarmadaDeployment) e
 
 	// TODO: if the karmada release is not loead, ingore the err.
 	if err != nil && !strings.Contains(err.Error(), ReleaseNotLoadErrMsg) {
-		klog.Errorf("[helm-installer]:failed to uninstall karmada for %s", kmd.Name)
+		klog.ErrorS(err, "[helm-installer]:failed to uninstall karmada", "kmd", kmd.Name)
 		return err
 	}
 
@@ -85,7 +85,7 @@ func (un *uninstallWorkflow) Uninstall(kmd *installv1alpha1.KarmadaDeployment) e
 }
 
 func (un *uninstallWorkflow) UninstallComponent(kmd *installv1alpha1.KarmadaDeployment) error {
-	klog.Infof("[helm-installer]:start uninstall conponent phase for %s", kmd.Name)
+	klog.InfoS("[helm-installer]:start uninstall conponent phase", "kmd", kmd.Name)
 	release, err := GetComponentRelease(un.helmClient, kmd)
 	if err != nil {
 		return err
@@ -103,7 +103,7 @@ func (un *uninstallWorkflow) UninstallComponent(kmd *installv1alpha1.KarmadaDepl
 
 	// TODO: if the karmada release is not loead, ingore the err.
 	if err != nil && !strings.Contains(err.Error(), ReleaseNotLoadErrMsg) {
-		klog.Errorf("[helm-installer]:failed to uninstall karmada for %s", kmd.Name)
+		klog.ErrorS(err, "[helm-installer]:failed to uninstall karmada", "kmd", kmd.Name)
 		return err
 	}
 

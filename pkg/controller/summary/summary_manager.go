@@ -113,8 +113,8 @@ func NewSummaryManager(kmdName string, kmdClient versioned.Interface,
 func (m *SummaryManager) Run(shutdown <-chan struct{}) {
 	defer utilruntime.HandleCrash()
 
-	klog.Infof("Start summary manager")
-	defer klog.Infof("Shutting down summary manager")
+	klog.InfoS("Start summary manager")
+	defer klog.InfoS("Shutting down summary manager")
 
 	m.informerManager.Start()
 	if !m.WaitForCacheSync() {
@@ -153,19 +153,19 @@ func (m *SummaryManager) processNext() bool {
 			return true
 		}
 
-		klog.Errorf("failed to get kmd %s, err: %v", m.kmdName, err)
+		klog.ErrorS(err, "failed to get kmd", "kmd", m.kmdName)
 		return true
 	}
 
 	// init a sumary if the status of kmd is nil.
 	summary := &installv1alpha1.KarmadaResourceSummary{}
 	if err := m.syncHandler(summary); err != nil {
-		klog.Errorf("failed to sync kmd %s summary, err: %v", m.kmdName, err)
+		klog.ErrorS(err, "failed to sync kmd summary", "kmd", m.kmdName)
 		return true
 	}
 
 	if err := m.updateKmdStatusSummaryIfNeed(kmd.DeepCopy(), summary); err != nil {
-		klog.Errorf("failed to update kmd %s summary, err: %v", m.kmdName, err)
+		klog.ErrorS(err, "failed to update kmd summary", "kmd", m.kmdName)
 		return true
 	}
 
@@ -176,11 +176,11 @@ func (m *SummaryManager) processNext() bool {
 // current kmd summary. it will skip this updation.
 func (m *SummaryManager) updateKmdStatusSummaryIfNeed(kmd *installv1alpha1.KarmadaDeployment, summary *installv1alpha1.KarmadaResourceSummary) error {
 	if !equality.Semantic.DeepEqual(kmd.Status.Summary, summary) {
-		klog.V(2).Infof("Start to update kmd %s status summary", kmd.Name)
+		klog.V(2).InfoS("Start to update kmd status summary", "kmd", kmd.Name)
 
 		kmd.Status.Summary = summary
 		if err := status.SetStatus(m.kmdClient, kmd); err != nil {
-			klog.Errorf("Failed to update kmd %s status summary, err:", kmd.Name, err)
+			klog.ErrorS(err, "Failed to update kmd status summary", "kmd", kmd.Name)
 			return err
 		}
 	}
@@ -335,7 +335,7 @@ func (m *SummaryManager) WaitForCacheSync() bool {
 }
 
 func (m *SummaryManager) Shuntdown() {
-	klog.Infof("Shutting down kmd summary controller")
+	klog.InfoS("Shutting down kmd summary controller")
 	m.closeOnce.Do(func() {
 		close(m.close)
 	})
