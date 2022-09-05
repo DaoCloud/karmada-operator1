@@ -31,7 +31,6 @@ import (
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	labels "k8s.io/apimachinery/pkg/labels"
 	"k8s.io/apimachinery/pkg/runtime"
-	"k8s.io/apimachinery/pkg/util/rand"
 	"k8s.io/apimachinery/pkg/version"
 	"k8s.io/apimachinery/pkg/watch"
 	clientset "k8s.io/client-go/kubernetes"
@@ -456,16 +455,6 @@ func (install *installWorkflow) ServicePort() (int32, error) {
 	}
 
 	return port, nil
-}
-
-func SetDefault(kmd *installv1alpha1.KarmadaDeployment) {
-	if len(kmd.Spec.ControlPlane.Namespace) == 0 {
-		kmd.Spec.ControlPlane.Namespace = kmd.Name + "-" + rand.String(5)
-	}
-
-	if len(kmd.Spec.ControlPlane.ServiceType) == 0 {
-		kmd.Spec.ControlPlane.ServiceType = corev1.ServiceTypeNodePort
-	}
 }
 
 func GetKarmadaVersion(kubeconfig []byte) (*version.Info, error) {
