@@ -24,6 +24,7 @@ import (
 	corev1 "k8s.io/api/core/v1"
 	"k8s.io/apimachinery/pkg/api/equality"
 	apierrors "k8s.io/apimachinery/pkg/api/errors"
+	"k8s.io/apimachinery/pkg/api/resource"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/apis/meta/v1/unstructured"
 	"k8s.io/apimachinery/pkg/labels"
@@ -357,20 +358,39 @@ func aggregateNodeSummary(nodeSummary *installv1alpha1.NodeSummary) *installv1al
 
 func aggregateResourceSummary(resourceSummary *installv1alpha1.ResourceSummary) *installv1alpha1.ResourceSummary {
 	for _, cr := range resourceSummary.ClusterResource {
-		calculateResourceList(resourceSummary.Allocatable, cr.Allocatable)
-		calculateResourceList(resourceSummary.Allocated, cr.Allocated)
-		calculateResourceList(resourceSummary.Allocating, cr.Allocating)
+		resourceSummary.Allocatable = calculateResourceList(resourceSummary.Allocatable, cr.Allocatable)
+		resourceSummary.Allocated = calculateResourceList(resourceSummary.Allocated, cr.Allocated)
+		resourceSummary.Allocating = calculateResourceList(resourceSummary.Allocating, cr.Allocating)
 	}
 
 	return resourceSummary
 }
 
-func calculateResourceList(totalResource, summateResource corev1.ResourceList) {
-	totalResource.Cpu().Add(*summateResource.Cpu())
-	totalResource.Memory().Add(*summateResource.Memory())
-	totalResource.Storage().Add(*summateResource.Storage())
-	totalResource.StorageEphemeral().Add(*summateResource.StorageEphemeral())
-	totalResource.Pods().Add(*summateResource.Pods())
+func calculateResourceList(totalResource, summateResource corev1.ResourceList) corev1.ResourceList {
+	if totalResource == nil {
+		totalResource = make(map[corev1.ResourceName]resource.Quantity)
+	}
+	cpu := totalResource.Cpu()
+	cpu.Add(*summateResource.Cpu())
+	totalResource[corev1.ResourceCPU] = *cpu
+
+	memory := totalResource.Memory()
+	memory.Add(*summateResource.Memory())
+	totalResource[corev1.ResourceMemory] = *memory
+
+	storage := totalResource.Storage()
+	storage.Add(*summateResource.Storage())
+	totalResource[corev1.ResourceStorage] = *storage
+
+	storageEphemeral := totalResource.StorageEphemeral()
+	storageEphemeral.Add(*summateResource.StorageEphemeral())
+	totalResource[corev1.ResourceEphemeralStorage] = *storageEphemeral
+
+	pods := totalResource.Pods()
+	pods.Add(*summateResource.Pods())
+	totalResource[corev1.ResourcePods] = *pods
+
+	return totalResource
 }
 
 func aggregateClusterSummary(clusterSummary *installv1alpha1.ClusterSummary) *installv1alpha1.ClusterSummary {
