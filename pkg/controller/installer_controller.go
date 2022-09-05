@@ -21,9 +21,11 @@ import (
 	"sync"
 	"time"
 
+	corev1 "k8s.io/api/core/v1"
 	"k8s.io/apimachinery/pkg/api/equality"
 	apierrors "k8s.io/apimachinery/pkg/api/errors"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
+	"k8s.io/apimachinery/pkg/util/rand"
 	"k8s.io/apimachinery/pkg/util/wait"
 	clientset "k8s.io/client-go/kubernetes"
 	"k8s.io/client-go/tools/cache"
@@ -230,6 +232,13 @@ func (c *Controller) initDefaultValues(kmd *installv1alpha1.KarmadaDeployment) e
 		kmd.SetLabels(kmdLabels)
 		isUpdate = true
 	}
+	if len(kmd.Spec.ControlPlane.Namespace) == 0 {
+		kmd.Spec.ControlPlane.Namespace = kmd.Name + "-" + rand.String(5)
+	}
+	if len(kmd.Spec.ControlPlane.ServiceType) == 0 {
+		kmd.Spec.ControlPlane.ServiceType = corev1.ServiceTypeNodePort
+	}
+
 	// ensure finalizer
 	if !controllerutil.ContainsFinalizer(kmd, ControllerFinalizer) && kmd.DeletionTimestamp.IsZero() {
 		_ = controllerutil.AddFinalizer(kmd, ControllerFinalizer)
