@@ -184,6 +184,14 @@ type Images struct {
 	// the iamge version of kube-apiserver and kube-controller-manager.
 	// +optional
 	KubeVersion string `json:"kubeVersion,omitempty"`
+
+	// the registry of cfssl and kubectl, default is "docker.io".
+	// +optional
+	DockerIoResgistry string `json:"dockerIoResgistry,omitempty"`
+
+	// the iamge version of cfssl and kubectl.
+	// +optional
+	DockerIoVersion string `json:"dockerIoVersion,omitempty"`
 }
 
 type ETCD struct {
