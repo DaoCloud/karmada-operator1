@@ -112,9 +112,6 @@ func (install *installWorkflow) Install(kmd *installv1alpha1.KarmadaDeployment) 
 func (install *installWorkflow) Preflight(kmd *installv1alpha1.KarmadaDeployment) error {
 	klog.InfoS("[helm-installer] start proflight phase", "kmd", kmd.Name)
 
-	// set default values to kmd.
-	SetDefault(kmd)
-
 	var err error
 	if err = status.SetStatusPhase(install.kmdClient, kmd, installv1alpha1.PreflightPhase); err != nil {
 		return err
