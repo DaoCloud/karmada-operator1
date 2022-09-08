@@ -20,5 +20,6 @@ spec:
   images:
     karmadaRegistry: swr.ap-southeast-1.myhuaweicloud.com
     karmadaVersion: latest
-    kubeResgistry: k8s-gcr.m.daocloud.io
+    kubeRegistry: k8s-gcr.m.daocloud.io
     kubeVersion: "v1.24.2"
+    dockerIoRegistry: docker.m.daocloud.io

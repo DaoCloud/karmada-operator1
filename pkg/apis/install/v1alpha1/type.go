@@ -179,11 +179,15 @@ type Images struct {
 
 	// the registry of kube-apiserver and kube-controller-manager, default is "k8s.gcr.io".
 	// +optional
-	KubeResgistry string `json:"kubeResgistry,omitempty"`
+	KubeRegistry string `json:"kubeRegistry,omitempty"`
 
 	// the iamge version of kube-apiserver and kube-controller-manager.
 	// +optional
 	KubeVersion string `json:"kubeVersion,omitempty"`
+
+	// the registry of cfssl and kubectl, default is "docker.io".
+	// +optional
+	DockerIoRegistry string `json:"dockerIoRegistry,omitempty"`
 }
 
 type ETCD struct {
