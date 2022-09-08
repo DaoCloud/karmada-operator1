@@ -172,6 +172,9 @@ spec:
                   images and karmada images can be set up separately. If there is
                   nil, will use the default images to install.
                 properties:
+                  dockerIoRegistry:
+                    description: the registry of cfssl and kubectl, default is "docker.io".
+                    type: string
                   karmadaRegistry:
                     description: karmada regisrty, default is "swr.ap-southeast-1.myhuaweicloud.com".
                       all of karmada images is effect by the param.
@@ -180,7 +183,7 @@ spec:
                     description: karmada images version, default is "latest". all
                       of karmada images is effect by the param.
                     type: string
-                  kubeResgistry:
+                  kubeRegistry:
                     description: the registry of kube-apiserver and kube-controller-manager,
                       default is "k8s.gcr.io".
                     type: string

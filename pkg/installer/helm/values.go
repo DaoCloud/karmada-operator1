@@ -19,7 +19,13 @@ var (
 	Karmada = []string{
 		"schedulerEstimator", "descheduler",
 		"search", "scheduler", "webhook",
-		"controllerManager", "agent", "aggregatedApiServer"}
+		"controllerManager", "agent", "aggregatedApiServer",
+	}
+
+	// All of docker.io support pod images.
+	DockerIo = []string{
+		"cfssl", "kubectl",
+	}
 )
 
 type InstallMode string
@@ -142,8 +148,8 @@ func Convert_KarmadaDeployment_To_Values(kmd *installv1alpha1.KarmadaDeployment)
 
 		for _, k := range Kubernates {
 			image := &Image{}
-			if len(kmd.Spec.Images.KubeResgistry) > 0 {
-				image.Registry = kmd.Spec.Images.KubeResgistry
+			if len(kmd.Spec.Images.KubeRegistry) > 0 {
+				image.Registry = kmd.Spec.Images.KubeRegistry
 			}
 
 			// etcd version is different with kubernetes version.
@@ -152,6 +158,18 @@ func Convert_KarmadaDeployment_To_Values(kmd *installv1alpha1.KarmadaDeployment)
 			}
 			if !image.isEmpty() {
 				modeImages[k] = image
+			}
+		}
+
+		for _, d := range DockerIo {
+			image := &Image{}
+			if len(kmd.Spec.Images.DockerIoRegistry) > 0 {
+				image.Registry = kmd.Spec.Images.DockerIoRegistry
+				image.Tag = "latest"
+			}
+
+			if !image.isEmpty() {
+				modeImages[d] = image
 			}
 		}
 	}
