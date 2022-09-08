@@ -53,10 +53,19 @@ func GetCurrentNSOrDefault() string {
 }
 
 func GetKubeMasterIP(client kubernetes.Interface) ([]string, error) {
-	nodeClient := client.CoreV1().Nodes()
-	masterNodes, err := nodeClient.List(context.TODO(), metav1.ListOptions{LabelSelector: "node-role.kubernetes.io/master"})
+	masterNodes, err := client.CoreV1().Nodes().List(context.TODO(), metav1.ListOptions{
+		LabelSelector: "node-role.kubernetes.io/master",
+	})
 	if err != nil {
 		return nil, err
+	}
+	if len(masterNodes.Items) == 0 {
+		masterNodes, err = client.CoreV1().Nodes().List(context.TODO(), metav1.ListOptions{
+			LabelSelector: "node-role.kubernetes.io/control-plane",
+		})
+		if err != nil {
+			return nil, err
+		}
 	}
 
 	masterIPs := make([]string, 0, len(masterNodes.Items))
