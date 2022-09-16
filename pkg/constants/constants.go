@@ -11,4 +11,7 @@ const (
 	ChartBasePath = "/var/run/karmada-operator"
 	// KubeconfigBasePath = "/var/run/karmada-operator/kubeconfig".
 	KubeconfigBasePath = ChartBasePath + "/config"
+
+	// RandomNamespace the name of namespace is a random value
+	RandomNamespace = "install.karmada.io/random-namespace"
 )

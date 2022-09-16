@@ -121,8 +121,7 @@ func (install *installWorkflow) Preflight(kmd *installv1alpha1.KarmadaDeployment
 	if err != nil {
 		klog.ErrorS(err, "[helm-installer]:failed to fetch karmada chart pkg")
 		kmd = installv1alpha1.KarmadaDeploymentNotReady(kmd, installv1alpha1.HelmChartFailedReason, err.Error())
-		status.SetStatus(install.kmdClient, kmd)
-		return err
+		return status.SetStatus(install.kmdClient, kmd)
 	}
 
 	if install.values == nil {
@@ -132,7 +131,7 @@ func (install *installWorkflow) Preflight(kmd *installv1alpha1.KarmadaDeployment
 			klog.ErrorS(err, "[helm-installer]:failed get ips of kubenetes master node")
 		}
 
-		SetChartDefaultValues(values, kmd.Spec.ControlPlane.Namespace, IPs)
+		SetChartDefaultValues(values, utils.GetControlPlaneNamespace(kmd), IPs)
 		install.values = values
 	}
 	return nil
@@ -187,16 +186,16 @@ func (install *installWorkflow) Deploy(kmd *installv1alpha1.KarmadaDeployment) e
 	if err := status.SetStatusPhase(install.kmdClient, kmd, installv1alpha1.DeployingPhase); err != nil {
 		return err
 	}
-
-	ns, err := install.destClient.CoreV1().Namespaces().Get(context.TODO(), kmd.Spec.ControlPlane.Namespace, metav1.GetOptions{})
+	controlPlaneNamespace := utils.GetControlPlaneNamespace(kmd)
+	ns, err := install.destClient.CoreV1().Namespaces().Get(context.TODO(), controlPlaneNamespace, metav1.GetOptions{})
 	if err != nil {
 		if !apierrors.IsNotFound(err) {
-			klog.ErrorS(err, "failed to get namespace from dest cluster", "namespace", kmd.Spec.ControlPlane.Namespace)
+			klog.ErrorS(err, "failed to get namespace from dest cluster", "namespace", controlPlaneNamespace)
 			return err
 		}
 
 		if ns, err = install.destClient.CoreV1().Namespaces().Create(context.TODO(),
-			&corev1.Namespace{ObjectMeta: metav1.ObjectMeta{Name: kmd.Spec.ControlPlane.Namespace}}, metav1.CreateOptions{}); err != nil {
+			&corev1.Namespace{ObjectMeta: metav1.ObjectMeta{Name: controlPlaneNamespace}}, metav1.CreateOptions{}); err != nil {
 			return err
 		}
 	}
@@ -207,8 +206,7 @@ func (install *installWorkflow) Deploy(kmd *installv1alpha1.KarmadaDeployment) e
 	if err != nil {
 		klog.ErrorS(err, "[helm-installer]:failed to compose chart values")
 		kmd = installv1alpha1.KarmadaDeploymentNotReady(kmd, installv1alpha1.HelmInitFailedReason, err.Error())
-		status.SetStatus(install.kmdClient, kmd)
-		return err
+		return status.SetStatus(install.kmdClient, kmd)
 	}
 	releaseName := fmt.Sprintf("karmada-%s", kmd.Name)
 	install.release, err = install.helmClient.UpgradeFromPath(install.chartPath,
@@ -226,8 +224,7 @@ func (install *installWorkflow) Deploy(kmd *installv1alpha1.KarmadaDeployment) e
 	if err != nil && !strings.Contains(err.Error(), ReleaseExistErrMsg) {
 		klog.ErrorS(err, "[helm-installer]:failed to install karmada chart", "kmd", kmd.Name)
 		kmd = installv1alpha1.KarmadaDeploymentNotReady(kmd, installv1alpha1.HelmReleaseFailedReason, err.Error())
-		status.SetStatus(install.kmdClient, kmd)
-		return err
+		return status.SetStatus(install.kmdClient, kmd)
 	}
 
 	// TODO: if community supports installing components together, it will not need install again.
@@ -255,8 +252,7 @@ func (install *installWorkflow) Deploy(kmd *installv1alpha1.KarmadaDeployment) e
 		if err != nil {
 			klog.ErrorS(err, "[helm-installer]:failed to install karmada component", "kmd", kmd.Name)
 			kmd = installv1alpha1.KarmadaDeploymentNotReady(kmd, installv1alpha1.HelmReleaseFailedReason, err.Error())
-			status.SetStatus(install.kmdClient, kmd)
-			return err
+			return status.SetStatus(install.kmdClient, kmd)
 		}
 	}
 
@@ -268,8 +264,7 @@ func (install *installWorkflow) Wait(kmd *installv1alpha1.KarmadaDeployment) err
 	release, err := install.GetRelease(kmd)
 	if err != nil {
 		kmd = installv1alpha1.KarmadaDeploymentNotReady(kmd, installv1alpha1.HelmReleaseFailedReason, err.Error())
-		status.SetStatus(install.kmdClient, kmd)
-		return err
+		return status.SetStatus(install.kmdClient, kmd)
 	}
 
 	kmd.Status.Phase = installv1alpha1.WaitingPhase
@@ -282,8 +277,7 @@ func (install *installWorkflow) Wait(kmd *installv1alpha1.KarmadaDeployment) err
 		if _, err := waitForPodReady(install.client, release.Namespace, m); err != nil {
 			klog.ErrorS(err, "[helm-installer]:failed to wait ready", "component", m, "namespace", release.Namespace)
 			kmd = installv1alpha1.KarmadaDeploymentNotReady(kmd, installv1alpha1.ReconciliationFailedReason, err.Error())
-			status.SetStatus(install.kmdClient, kmd)
-			return err
+			return status.SetStatus(install.kmdClient, kmd)
 		}
 	}
 	return nil

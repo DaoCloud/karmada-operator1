@@ -63,7 +63,7 @@ type SummaryManager struct {
 	kmdName   string
 	kmdClient versioned.Interface
 
-	installStore    installliter.KarmadaDeploymentLister
+	installLister   installliter.KarmadaDeploymentLister
 	informerManager informermanager.InformerManager
 
 	closeOnce sync.Once
@@ -78,12 +78,12 @@ func (h *NothingResourceEventHandler) OnDelete(obj interface{})            {}
 func (h *NothingResourceEventHandler) OnUpdate(oldObj, newObj interface{}) {}
 
 func NewSummaryManager(kmdName string, kmdClient versioned.Interface,
-	installStore installliter.KarmadaDeploymentLister, client dynamic.Interface) *SummaryManager {
+	installLister installliter.KarmadaDeploymentLister, client dynamic.Interface) *SummaryManager {
 	manager := &SummaryManager{
-		kmdName:      kmdName,
-		kmdClient:    kmdClient,
-		installStore: installStore,
-		close:        make(chan struct{}),
+		kmdName:       kmdName,
+		kmdClient:     kmdClient,
+		installLister: installLister,
+		close:         make(chan struct{}),
 	}
 
 	nothing := &NothingResourceEventHandler{}
@@ -147,7 +147,7 @@ func (m *SummaryManager) worker() {
 }
 
 func (m *SummaryManager) processNext() bool {
-	kmd, err := m.installStore.Get(m.kmdName)
+	kmd, err := m.installLister.Get(m.kmdName)
 	if err != nil {
 		if apierrors.IsNotFound(err) {
 			klog.V(4).Infof("%v has been deleted", m.kmdName)
@@ -408,8 +408,8 @@ func aggregateClusterSummary(clusterSummary *installv1alpha1.ClusterSummary) *in
 }
 
 func checkClusterReady(conditions []metav1.Condition) bool {
-	for _, condtion := range conditions {
-		if condtion.Type == clusterv1alpha1.ClusterConditionReady && condtion.Status == metav1.ConditionTrue {
+	for _, condition := range conditions {
+		if condition.Type == clusterv1alpha1.ClusterConditionReady && condition.Status == metav1.ConditionTrue {
 			return true
 		}
 	}
@@ -418,8 +418,8 @@ func checkClusterReady(conditions []metav1.Condition) bool {
 }
 
 func checkDeploymentReady(conditions []appsv1.DeploymentCondition) bool {
-	for _, condtion := range conditions {
-		if condtion.Type == appsv1.DeploymentAvailable && condtion.Status == corev1.ConditionTrue {
+	for _, condition := range conditions {
+		if condition.Type == appsv1.DeploymentAvailable && condition.Status == corev1.ConditionTrue {
 			return true
 		}
 	}

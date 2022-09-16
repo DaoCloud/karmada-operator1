@@ -27,7 +27,9 @@ import (
 	"k8s.io/klog/v2"
 
 	installv1alpha1 "github.com/daocloud/karmada-operator/pkg/apis/install/v1alpha1"
+	"github.com/daocloud/karmada-operator/pkg/constants"
 	"github.com/daocloud/karmada-operator/pkg/helm"
+	"github.com/daocloud/karmada-operator/pkg/utils"
 )
 
 const (
@@ -116,23 +118,34 @@ func (un *uninstallWorkflow) UninstallComponent(kmd *installv1alpha1.KarmadaDepl
 // 2. clusterRole/karmada-pre-job
 // 3. clusterRoleBinding/karmada-pre-job
 // 4. ns/karmada-system
-func (un *uninstallWorkflow) cleanup(kd *installv1alpha1.KarmadaDeployment, release, namespace string) error {
-	_ = un.destClient.CoreV1().ServiceAccounts(kd.Spec.ControlPlane.Namespace).Delete(
+func (un *uninstallWorkflow) cleanup(kmd *installv1alpha1.KarmadaDeployment, release, namespace string) error {
+	controlPlaneNamespace := utils.GetControlPlaneNamespace(kmd)
+	err := un.destClient.CoreV1().ServiceAccounts(controlPlaneNamespace).Delete(
 		context.TODO(), fmt.Sprintf("%s-pre-job", release), metav1.DeleteOptions{})
-
-	_ = un.destClient.RbacV1().ClusterRoles().Delete(
+	if err != nil {
+		klog.ErrorS(err, "Failed to delete ServiceAccount(%s/%s)", controlPlaneNamespace, fmt.Sprintf("%s-pre-job", release))
+	}
+	err = un.destClient.RbacV1().ClusterRoles().Delete(
 		context.TODO(), fmt.Sprintf("%s-pre-job", release), metav1.DeleteOptions{})
-
-	_ = un.destClient.RbacV1().ClusterRoleBindings().Delete(
+	if err != nil {
+		klog.ErrorS(err, "Failed to delete ClusterRole(%s)", fmt.Sprintf("%s-pre-job", release))
+	}
+	err = un.destClient.RbacV1().ClusterRoleBindings().Delete(
 		context.TODO(), fmt.Sprintf("%s-pre-job", release), metav1.DeleteOptions{})
-
-	_ = un.destClient.CoreV1().Namespaces().Delete(
-		context.TODO(), namespace, metav1.DeleteOptions{})
-
+	if err != nil {
+		klog.ErrorS(err, "Failed to delete ClusterRoleBinding(%s)", fmt.Sprintf("%s-pre-job", release))
+	}
+	if kmd.GetAnnotations()[constants.RandomNamespace] != "" {
+		// Delete only randomly generated namespaces
+		if err = un.destClient.CoreV1().Namespaces().Delete(context.TODO(), kmd.GetAnnotations()[constants.RandomNamespace], metav1.DeleteOptions{}); err != nil {
+			klog.ErrorS(err, "Failed delete randomly generated namespaces")
+			return err
+		}
+	}
 	// delete the secret of karmada instance kubeconfig on the cluster.
-	secretRef := kd.Status.SecretRef
+	secretRef := kmd.Status.SecretRef
 	if secretRef != nil {
-		un.client.CoreV1().Secrets(secretRef.Namespace).Delete(context.TODO(), secretRef.Name, metav1.DeleteOptions{})
+		return un.client.CoreV1().Secrets(secretRef.Namespace).Delete(context.TODO(), secretRef.Name, metav1.DeleteOptions{})
 	}
 
 	// TODO: delete kubeconfig from the directory
