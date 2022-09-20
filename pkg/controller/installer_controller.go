@@ -44,9 +44,9 @@ import (
 const (
 	// maximum retry times.
 	MaxInstallSyncRetry = 5
-	ControllerFinalizer = "karmada.install.io/installer-controller"
+	ControllerFinalizer = "install.karmada.io/installer-controller"
 	// DisableCascadingDeletionLabel is the label that determine whether to perform cascade deletion
-	DisableCascadingDeletionLabel = "karmada.install.io/disable-cascading-deletion"
+	DisableCascadingDeletionLabel = "install.karmada.io/disable-cascading-deletion"
 )
 
 type Controller struct {
@@ -202,7 +202,7 @@ func (c *Controller) syncHandler(key string) (err error) {
 		return err
 	}
 	if !kmd.DeletionTimestamp.IsZero() {
-		if kmd.GetLabels()[DisableCascadingDeletionLabel] == "false" {
+		if kmd.GetLabels()[DisableCascadingDeletionLabel] != "true" {
 			klog.InfoS("remove karmadaDeployment and karmada instance", "karmadaDeployment", kmd.Name)
 			if err := c.factory.SyncWithAction(kmd, factory.UninstallAction); err != nil {
 				return err
@@ -225,12 +225,6 @@ func (c *Controller) initDefaultValues(kmd *installv1alpha1.KarmadaDeployment) e
 	// add default label karmadadeployments.install.karmada.io/disable-cascading-deletion:true
 	if kmd.GetLabels() == nil {
 		kmd.SetLabels(make(map[string]string))
-	}
-	kmdLabels := kmd.GetLabels()
-	if _, isExist := kmdLabels[DisableCascadingDeletionLabel]; !isExist {
-		kmdLabels[DisableCascadingDeletionLabel] = "false"
-		kmd.SetLabels(kmdLabels)
-		isUpdate = true
 	}
 	if len(kmd.Spec.ControlPlane.Namespace) == 0 {
 		kmd.Spec.ControlPlane.Namespace = kmd.Name + "-" + rand.String(5)
