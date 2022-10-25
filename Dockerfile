@@ -7,7 +7,8 @@ ENV GO111MODULE=on \
 
 COPY . .
 
-RUN CGO_ENABLED=0 GOOS=linux GOARCH=amd64 go build -mod=vendor -o operator ./cmd
+RUN CGO_ENABLED=0 GOOS=linux GOARCH=$(go env GOARCH) && echo "Building GoARCH of &GOARCH..." \
+     && go build -mod=vendor -o operator ./cmd
 
 FROM alpine:3.15
 
