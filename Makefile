@@ -2,8 +2,7 @@ GOOS ?= $(shell go env GOOS)
 GOARCH ?= $(shell go env GOARCH)
 SOURCES := $(shell find ./cmd/controller-manager -type f  -name '*.go')
 
-BUILD_ARCH ?= linux/$(GOARCH)
-
+RELEASE_ARCHS ?= amd64 arm64
 # Git information
 GIT_VERSION ?= $(shell git describe --tags --abbrev=8 --dirty) # attention: gitlab CI: git fetch should not use shallow
 GIT_COMMIT_HASH ?= $(shell git rev-parse HEAD)
@@ -70,20 +69,45 @@ all: karmada-operator-imgs
 
 .PHONY: karmada-operator
 karmada-operator: $(SOURCES)
-	echo "Building karmada-operator for arch = $(BUILD_ARCH)"
+	echo "Building karmada-operator for arch = $(GOARCH)"
 	export DOCKER_CLI_EXPERIMENTAL=enabled ;\
-	! ( docker buildx ls | grep karmada-operator-builder ) && docker buildx create --use --platform=$(BUILD_ARCH) --name karmada-operator-builder ;\
+	! ( docker buildx ls | grep karmada-operator-builder ) && docker buildx create --use --platform=linux/$(GOARCH) --name karmada-operator-builder ;\
 	docker buildx build \
 		--build-arg karmada-operator_version=$(KARMADA_OPERATOR_VERSION) \
 		--build-arg UBUNTU_MIRROR=$(UBUNTU_MIRROR) \
 		--builder karmada-operator-builder \
-		--platform $(BUILD_ARCH) \
-		--tag $(REGISTRY_REPO)/karmada-operator:$(KARMADA_OPERATOR_IMAGE_VERSION)  \
-		--tag $(REGISTRY_REPO)/karmada-operator:latest  \
+		--platform linux/$(GOARCH) \
+		--tag $(REGISTRY_REPO)/karmada-operator-$(GOARCH):$(KARMADA_OPERATOR_IMAGE_VERSION)  \
+		--tag $(REGISTRY_REPO)/karmada-operator-$(GOARCH):latest  \
 		-f ./Dockerfile \
 		--load \
 		.
 
+
+.PHONY: push-multi-architecture-images
+push-multi-architecture-images: clean-multi-architecture-images
+	set -e; \
+	images=""; \
+	latest_images=""; \
+	for arch in $(RELEASE_ARCHS); do \
+		GOARCH=$$arch $(MAKE) karmada-operator; \
+		image=$(REGISTRY_REPO)/karmada-operator-$$arch:$(KARMADA_OPERATOR_IMAGE_VERSION); \
+		docker push $(REGISTRY_REPO)/karmada-operator-$$arch:$(KARMADA_OPERATOR_IMAGE_VERSION); \
+		images="$$images $$image"; \
+		latest_image=$(REGISTRY_REPO)/karmada-operator-$$arch:latest; \
+		docker push $(REGISTRY_REPO)/karmada-operator-$$arch:latest; \
+		latest_images="$$latest_images $$latest_image"; \
+	done; \
+	docker manifest create $(REGISTRY_REPO)/karmada-operator:$(KARMADA_OPERATOR_IMAGE_VERSION) $$images; \
+	docker manifest push $(REGISTRY_REPO)/karmada-operator:$(KARMADA_OPERATOR_IMAGE_VERSION); \
+	$(MAKE) clean-multi-architecture-images;\
+	docker manifest create $(REGISTRY_REPO)/karmada-operator:latest $$latest_images; \
+	docker manifest push $(REGISTRY_REPO)/karmada-operator:latest;
+
+.PHONY: clean-multi-architecture-images
+clean-multi-architecture-images:
+	docker manifest rm $(REGISTRY_REPO)/karmada-operator:$(KARMADA_OPERATOR_IMAGE_VERSION) 2>/dev/null;\
+	docker manifest rm $(REGISTRY_REPO)/karmada-operator:latest 2>/dev/null; exit 0
 .PHONY: upload-image
 upload-image: karmada-operator-imgs
 	@echo "push images to $(REGISTRY_REPO)"
