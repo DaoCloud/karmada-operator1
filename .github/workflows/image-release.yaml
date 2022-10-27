@@ -18,10 +18,8 @@ jobs:
           fetch-depth: 0
       - name: Login registry
         run: |
-          echo "${{ secrets.GITHUB_TOKEN }}" | docker login ghcr.io -u ${{ github.actor }} --password-stdin
-      - name: Make
+          echo "${{ secrets.REGISTRY_PASSWORD }}" | docker login ${{ secrets.REGISTRY_RELEASE_NAME }} -u ${{ secrets.REGISTRY_USER }} --password-stdin
+      - name: Make and push
         run: |
-          make karmada-operator
-      - name: Push
-        run: |
-          make upload-image
+          make push-multi-architecture-images
+
