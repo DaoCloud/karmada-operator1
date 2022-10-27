@@ -55,8 +55,8 @@ type SummaryController struct {
 	client    clientset.Interface
 	kmdClient versioned.Interface
 
-	queue        workqueue.RateLimitingInterface
-	installStore installliter.KarmadaDeploymentLister
+	queue         workqueue.RateLimitingInterface
+	installLister installliter.KarmadaDeploymentLister
 	// instalStoreSynced returns true if the kmd store has been synced at least once.
 	// Added as a member to the struct to allow injection for testing.
 	instalStoreSynced cache.InformerSynced
@@ -83,7 +83,7 @@ func NewController(client clientset.Interface, kmdClient versioned.Interface, km
 			DeleteFunc: controller.DeleteEvent,
 		},
 	)
-	controller.installStore = kmdInformer.Lister()
+	controller.installLister = kmdInformer.Lister()
 	controller.instalStoreSynced = kmdInformer.Informer().HasSynced
 	controller.syncHandler = controller.syncKmdStatusResource
 
@@ -201,7 +201,7 @@ func (rc *SummaryController) syncKmdStatusResource(key string) (bool, error) {
 		return false, err
 	}
 
-	kmd, err := rc.installStore.Get(name)
+	kmd, err := rc.installLister.Get(name)
 	if err != nil {
 		if apierrors.IsNotFound(err) {
 			klog.V(4).Infof("%v has been deleted", key)
@@ -282,7 +282,7 @@ func (rc *SummaryController) GetSummaryManager(kmd *installv1alpha1.KarmadaDeplo
 		return nil, err
 	}
 
-	manager = NewSummaryManager(kmd.Name, rc.kmdClient, rc.installStore, dynamicClient)
+	manager = NewSummaryManager(kmd.Name, rc.kmdClient, rc.installLister, dynamicClient)
 	rc.managers[kmd.Name] = manager
 
 	return manager, nil

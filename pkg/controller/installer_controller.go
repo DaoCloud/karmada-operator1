@@ -18,6 +18,7 @@ package controller
 
 import (
 	"context"
+	"reflect"
 	"sync"
 	"time"
 
@@ -34,6 +35,7 @@ import (
 	"sigs.k8s.io/controller-runtime/pkg/controller/controllerutil"
 
 	installv1alpha1 "github.com/daocloud/karmada-operator/pkg/apis/install/v1alpha1"
+	"github.com/daocloud/karmada-operator/pkg/constants"
 	"github.com/daocloud/karmada-operator/pkg/generated/clientset/versioned"
 	installinformers "github.com/daocloud/karmada-operator/pkg/generated/informers/externalversions/install/v1alpha1"
 	installliter "github.com/daocloud/karmada-operator/pkg/generated/listers/install/v1alpha1"
@@ -59,7 +61,7 @@ type Controller struct {
 
 	factory *factory.InstallerFactory
 
-	installStore installliter.KarmadaDeploymentLister
+	installLister installliter.KarmadaDeploymentLister
 	// instalStoreSynced returns true if the kmd store has been synced at least once.
 	// Added as a member to the struct to allow injection for testing.
 	instalStoreSynced cache.InformerSynced
@@ -73,7 +75,7 @@ func NewController(kmdClient versioned.Interface,
 	controller := &Controller{
 		kmdClient:         kmdClient,
 		clientset:         client,
-		installStore:      karmadaDeploymentInformer.Lister(),
+		installLister:     karmadaDeploymentInformer.Lister(),
 		instalStoreSynced: karmadaDeploymentInformer.Informer().HasSynced,
 		queue: workqueue.NewRateLimitingQueue(
 			workqueue.NewItemExponentialFailureRateLimiter(2*time.Second, 5*time.Second),
@@ -188,7 +190,7 @@ func (c *Controller) syncHandler(key string) (err error) {
 		return err
 	}
 
-	kmd, err := c.installStore.Get(name)
+	kmd, err := c.installLister.Get(name)
 	if err != nil {
 		if apierrors.IsNotFound(err) {
 			klog.V(4).Infof("kmd has been deleted: %v", key)
@@ -208,10 +210,12 @@ func (c *Controller) syncHandler(key string) (err error) {
 				return err
 			}
 		}
-		controllerutil.ContainsFinalizer(kmd.DeepCopy(), ControllerFinalizer)
-		_ = controllerutil.RemoveFinalizer(kmd, ControllerFinalizer)
-		if _, err := c.kmdClient.InstallV1alpha1().KarmadaDeployments().Update(context.TODO(), kmd, metav1.UpdateOptions{}); err != nil {
-			return err
+
+		if controllerutil.ContainsFinalizer(kmd.DeepCopy(), ControllerFinalizer) {
+			_ = controllerutil.RemoveFinalizer(kmd, ControllerFinalizer)
+			if _, err := c.kmdClient.InstallV1alpha1().KarmadaDeployments().Update(context.TODO(), kmd, metav1.UpdateOptions{}); err != nil {
+				return err
+			}
 		}
 		return nil
 	}
@@ -221,19 +225,20 @@ func (c *Controller) syncHandler(key string) (err error) {
 // initDefaultValues init karmadaDeployment default value
 func (c *Controller) initDefaultValues(kmd *installv1alpha1.KarmadaDeployment) error {
 	var err error
-	isUpdate := false
+	kmdClone := kmd.DeepCopy()
 	// add default label karmadadeployments.install.karmada.io/disable-cascading-deletion:true
-	if kmd.GetLabels() == nil {
-		kmd.SetLabels(make(map[string]string))
-	}
-	kmdLabels := kmd.GetLabels()
-	if _, isExist := kmdLabels[DisableCascadingDeletionLabel]; !isExist {
-		kmdLabels[DisableCascadingDeletionLabel] = "false"
-		kmd.SetLabels(kmdLabels)
-		isUpdate = true
+
+	if len(kmd.GetLabels()[DisableCascadingDeletionLabel]) == 0 {
+		if kmd.GetLabels() == nil {
+			kmd.Labels = make(map[string]string, 1)
+		}
+		kmd.Labels[DisableCascadingDeletionLabel] = "false"
 	}
 	if len(kmd.Spec.ControlPlane.Namespace) == 0 {
-		kmd.Spec.ControlPlane.Namespace = kmd.Name + "-" + rand.String(5)
+		if kmd.GetAnnotations() == nil {
+			kmd.Annotations = make(map[string]string, 1)
+		}
+		kmd.Annotations[constants.RandomNamespace] = kmd.Name + "-" + rand.String(5)
 	}
 	if len(kmd.Spec.ControlPlane.ServiceType) == 0 {
 		kmd.Spec.ControlPlane.ServiceType = corev1.ServiceTypeNodePort
@@ -242,13 +247,10 @@ func (c *Controller) initDefaultValues(kmd *installv1alpha1.KarmadaDeployment) e
 	// ensure finalizer
 	if !controllerutil.ContainsFinalizer(kmd, ControllerFinalizer) && kmd.DeletionTimestamp.IsZero() {
 		_ = controllerutil.AddFinalizer(kmd, ControllerFinalizer)
-		isUpdate = true
 	}
-	if isUpdate {
+	if !reflect.DeepEqual(kmdClone, kmd) {
 		kmd, err = c.kmdClient.InstallV1alpha1().KarmadaDeployments().Update(context.TODO(), kmd, metav1.UpdateOptions{})
-		if err != nil {
-			return err
-		}
+		return err
 	}
 	return nil
 }

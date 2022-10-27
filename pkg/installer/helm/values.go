@@ -246,7 +246,7 @@ func Convert_KarmadaDeployment_To_Values(kmd *installv1alpha1.KarmadaDeployment)
 	return values
 }
 
-// setDefaultValues set apiserver default values
+// SetChartDefaultValues set apiserver default values
 // set default external ip
 // the certificate expires in 10 years
 func SetChartDefaultValues(v *Values, releaseNamespace string, externalHosts []string) {
