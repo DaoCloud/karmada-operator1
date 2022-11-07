@@ -165,7 +165,6 @@ func Convert_KarmadaDeployment_To_Values(kmd *installv1alpha1.KarmadaDeployment)
 			image := &Image{}
 			if len(kmd.Spec.Images.DockerIoRegistry) > 0 {
 				image.Registry = kmd.Spec.Images.DockerIoRegistry
-				image.Tag = "latest"
 			}
 
 			if !image.isEmpty() {
