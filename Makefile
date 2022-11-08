@@ -80,7 +80,7 @@ karmada-operator: $(SOURCES)
 		--platform $(BUILD_ARCH) \
 		--tag $(REGISTRY_REPO)/karmada-operator:$(KARMADA_OPERATOR_IMAGE_VERSION)  \
 		--tag $(REGISTRY_REPO)/karmada-operator:latest  \
-		-f ./Dockerfile \
+		-f ./docker/Dockerfile \
 		--load \
 		.
 
