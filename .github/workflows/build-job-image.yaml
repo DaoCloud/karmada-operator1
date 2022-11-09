@@ -2,7 +2,8 @@ name: Build kubectl & cfssl image
 
 env:
   REGISTER: ghcr.io
-  IMAGE_REPO: ${{ github.repository }}
+  # IMAGE_REPO: ${{ github.repository }}
+  IMAGE_REPO: daocloud
   IMAGE_ROOT_PATH: docker
   BUILD_PLATFORM: linux/amd64,linux/arm64
   KUBECTL_VERSION: v1.25.3
