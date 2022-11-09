@@ -104,6 +104,9 @@ const (
 	SchedulerEstimatorModuleName    ModuleName = "schedulerEstimator"
 	DeschedulerModuleName           ModuleName = "descheduler"
 	SearchModuleName                ModuleName = "search"
+
+	KubectlModuleName ModuleName = "kubectl"
+	CfsslModuleName   ModuleName = "cfssl"
 )
 
 type ControlPlaneCfg struct {
@@ -164,6 +167,11 @@ type Module struct {
 
 	// +optional
 	Image string `json:"image,omitempty"`
+
+	// PullPolicy describes a policy for if/when to pull a container image
+	// +enum
+	// +optional
+	ImagePullPolicy corev1.PullPolicy `json:"imagePullPolicy,omitempty"`
 }
 
 type Images struct {

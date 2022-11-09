@@ -230,36 +230,6 @@ func (install *installWorkflow) Deploy(kmd *installv1alpha1.KarmadaDeployment) e
 		return err
 	}
 
-	// TODO: if community supports installing components together, it will not need install again.
-	// deploy karmada component
-	if len(install.values.Components) > 0 {
-		values, err := install.values.ValuesWithComponentInstallMode()
-		if err != nil {
-			klog.ErrorS(err, "[helm-installer]:failed to compose chart values")
-			kmd = installv1alpha1.KarmadaDeploymentNotReady(kmd, installv1alpha1.HelmInitFailedReason, err.Error())
-			install.kmdClient.InstallV1alpha1().KarmadaDeployments().UpdateStatus(context.Background(), kmd, metav1.UpdateOptions{})
-			return err
-		}
-		crn := fmt.Sprintf("karmada-%s-component", kmd.Name)
-		install.componentRelease, err = install.helmClient.UpgradeFromPath(install.chartPath,
-			crn, values, helm.UpgradeOptions{
-				Namespace:         ns.Name,
-				Timeout:           DefaulTimeout,
-				Install:           true,
-				Force:             true,
-				SkipCRDs:          false,
-				Wait:              false,
-				Atomic:            true,
-				DisableValidation: true,
-			})
-		if err != nil {
-			klog.ErrorS(err, "[helm-installer]:failed to install karmada component", "kmd", kmd.Name)
-			kmd = installv1alpha1.KarmadaDeploymentNotReady(kmd, installv1alpha1.HelmReleaseFailedReason, err.Error())
-			status.SetStatus(install.kmdClient, kmd)
-			return err
-		}
-	}
-
 	return nil
 }
 
@@ -364,9 +334,10 @@ func (install *installWorkflow) Completed(kmd *installv1alpha1.KarmadaDeployment
 		if err != nil {
 			klog.ErrorS(err, "[helm-installer]:failed get karmada version")
 		}
-
-		kmd.Status.KubernetesVersion = version.String()
-		klog.InfoS("[helm-installer]:success install karmada release", "version", version.String())
+		if version != nil {
+			kmd.Status.KubernetesVersion = version.String()
+		}
+		klog.InfoS("[helm-installer]:success install karmada release", "version", constants.DefaultKarmadaVersion)
 	}
 
 	// TODO: How to get the karmada version?

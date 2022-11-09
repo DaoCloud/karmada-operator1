@@ -1,7 +1,6 @@
 package helm
 
 import (
-	// "fmt"
 	"fmt"
 	"strings"
 
@@ -9,6 +8,7 @@ import (
 	corev1 "k8s.io/api/core/v1"
 
 	installv1alpha1 "github.com/daocloud/karmada-operator/pkg/apis/install/v1alpha1"
+	"github.com/daocloud/karmada-operator/pkg/constants"
 )
 
 var (
@@ -63,9 +63,10 @@ type Module struct {
 }
 
 type Image struct {
-	Registry   string `yaml:"registry,omitempty"`
-	Repository string `yaml:"repository,omitempty"`
-	Tag        string `yaml:"tag,omitempty"`
+	Registry   string            `yaml:"registry,omitempty"`
+	Repository string            `yaml:"repository,omitempty"`
+	Tag        string            `yaml:"tag,omitempty"`
+	PullPolicy corev1.PullPolicy `yaml:"pullPolicy,omitempty"`
 }
 
 type ETCD struct {
@@ -92,16 +93,9 @@ func (i *Image) isEmpty() bool {
 func (v *Values) ValuesWithHostInstallMode() ([]byte, error) {
 	vc := *v
 	vc.InstallMode = HostInstallMode
-	vc.Components = nil
+	// vc.Components = nil
 
 	// TODO: remove redundant module.
-	return yaml.Marshal(vc)
-}
-
-func (v *Values) ValuesWithComponentInstallMode() ([]byte, error) {
-	vc := *v
-	vc.InstallMode = ComponentInstallMode
-	vc.ETCD = ETCD{}
 	return yaml.Marshal(vc)
 }
 
@@ -205,6 +199,7 @@ func Convert_KarmadaDeployment_To_Values(kmd *installv1alpha1.KarmadaDeployment)
 			Registry:   registry,
 			Repository: repository,
 			Tag:        tag,
+			PullPolicy: module.ImagePullPolicy,
 		}
 
 		values.Modules[name] = m
@@ -249,15 +244,76 @@ func Convert_KarmadaDeployment_To_Values(kmd *installv1alpha1.KarmadaDeployment)
 // set default external ip
 // the certificate expires in 10 years
 func SetChartDefaultValues(v *Values, releaseNamespace string, externalHosts []string) {
+	// set default value to apiserver.
 	apiserver := Module{}
 	if module, exist := v.Modules["apiServer"]; exist {
 		apiserver = module
 	}
-
 	defaultHostNetwork := false
 	apiserver.HostNetwork = &defaultHostNetwork
 	v.Modules["apiServer"] = apiserver
 
+	// set default value to kubectl and cfssl
+	kubectl := Module{}
+	if module, exist := v.Modules["kubectl"]; exist {
+		kubectl = module
+	}
+	if kubectl.Image == nil {
+		kubectl.Image = &Image{
+			Registry:   constants.DefaultChartJobImageRegistry,
+			Repository: constants.DefaultChartKubectlRepository,
+			Tag:        constants.DefaultChartKubectlTag,
+		}
+	} else {
+		if len(kubectl.Image.Registry) == 0 {
+			kubectl.Image.Registry = constants.DefaultChartJobImageRegistry
+		}
+		if len(kubectl.Image.Repository) == 0 {
+			kubectl.Image.Repository = constants.DefaultChartKubectlRepository
+		}
+		if len(kubectl.Image.Tag) == 0 {
+			kubectl.Image.Tag = constants.DefaultChartKubectlTag
+		}
+	}
+	v.Modules["kubectl"] = kubectl
+
+	cfssl := Module{}
+	if module, exist := v.Modules["cfssl"]; exist {
+		cfssl = module
+	}
+	if cfssl.Image == nil {
+		cfssl.Image = &Image{
+			Registry:   constants.DefaultChartJobImageRegistry,
+			Repository: constants.DefaultChartCfsslRepository,
+			Tag:        constants.DefaultChartCfsslTag,
+		}
+	} else {
+		if len(cfssl.Image.Registry) == 0 {
+			cfssl.Image.Registry = constants.DefaultChartJobImageRegistry
+		}
+		if len(cfssl.Image.Repository) == 0 {
+			cfssl.Image.Repository = constants.DefaultChartCfsslRepository
+		}
+		if len(cfssl.Image.Tag) == 0 {
+			cfssl.Image.Tag = constants.DefaultChartKubectlTag
+		}
+	}
+	v.Modules["cfssl"] = cfssl
+
+	// set all karmada image pollpolicy to "IfNotPresent"
+	for _, m := range Karmada {
+		module, exist := v.Modules[m]
+		if !exist || module.Image == nil {
+			module.Image = &Image{
+				PullPolicy: corev1.PullIfNotPresent,
+			}
+		} else {
+			module.Image.PullPolicy = corev1.PullIfNotPresent
+		}
+		v.Modules[m] = module
+	}
+
+	// set default cert values.
 	hosts := []string{
 		"kubernetes.default.svc",
 		fmt.Sprintf("*.etcd.%s.svc.cluster.local", releaseNamespace),

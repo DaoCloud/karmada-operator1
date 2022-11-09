@@ -63,3 +63,18 @@ func KarmadaDeploymentReady(kmd *KarmadaDeployment) *KarmadaDeployment {
 	apimeta.SetStatusCondition(&kmd.Status.Conditions, newCondition)
 	return kmd
 }
+
+func IsIntallModeFailed(kmd *KarmadaDeployment) bool {
+	var isIntallModeFailed bool
+	for _, c := range kmd.Status.Conditions {
+		if c.Type == "Ready" && c.Status == metav1.ConditionFalse && c.Reason == IntallModeFailedReason {
+			isIntallModeFailed = true
+			break
+		}
+	}
+	return isIntallModeFailed
+}
+
+func IsConditionEmpty(kmd *KarmadaDeployment) bool {
+	return len(kmd.Status.Conditions) == 0
+}

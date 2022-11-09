@@ -1,0 +1,12 @@
+apiVersion: install.karmada.io/v1alpha1
+kind: KarmadaDeployment
+metadata:
+  name: demo-kmd
+spec:
+  mode: Helm
+  controlPlane:
+    etcd:
+      storageMode: hostPath
+    endPointCfg:
+      secretRef:
+        name: "my-kubeconfig"
