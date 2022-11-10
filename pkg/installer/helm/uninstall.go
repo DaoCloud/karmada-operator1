@@ -31,7 +31,7 @@ import (
 )
 
 const (
-	DefaultUninstallTimeOut = time.Second * 60
+	DefaultUninstallTimeOut = time.Second * 300
 )
 
 var (
@@ -53,11 +53,6 @@ func NewUninstallWorkflow(client clientset.Interface, destClient clientset.Inter
 }
 
 func (un *uninstallWorkflow) Uninstall(kmd *installv1alpha1.KarmadaDeployment) error {
-	if err := un.UninstallComponent(kmd); err != nil {
-		klog.ErrorS(err, "[helm-installer]:failed to uninstall karmada componnets", "kmd", kmd.Name)
-		return err
-	}
-
 	klog.InfoS("[helm-installer]:start uninstall phase", "kmd", kmd.Name)
 	release, err := GetRelease(un.helmClient, kmd)
 	if err != nil {
@@ -82,32 +77,6 @@ func (un *uninstallWorkflow) Uninstall(kmd *installv1alpha1.KarmadaDeployment) e
 	}
 
 	return un.cleanup(kmd, release.Name, release.Namespace)
-}
-
-func (un *uninstallWorkflow) UninstallComponent(kmd *installv1alpha1.KarmadaDeployment) error {
-	klog.InfoS("[helm-installer]:start uninstall conponent phase", "kmd", kmd.Name)
-	release, err := GetComponentRelease(un.helmClient, kmd)
-	if err != nil {
-		return err
-	}
-
-	if release == nil {
-		return nil
-	}
-
-	err = un.helmClient.Uninstall(release.Name, helm.UninstallOptions{
-		KeepHistory: false,
-		Namespace:   release.Namespace,
-		Timeout:     DefaultUninstallTimeOut,
-	})
-
-	// TODO: if the karmada release is not loead, ingore the err.
-	if err != nil && !strings.Contains(err.Error(), ReleaseNotLoadErrMsg) {
-		klog.ErrorS(err, "[helm-installer]:failed to uninstall karmada", "kmd", kmd.Name)
-		return err
-	}
-
-	return nil
 }
 
 // There are some RBAC resources that are used by the `preJob` that

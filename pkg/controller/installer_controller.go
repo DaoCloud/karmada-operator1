@@ -29,11 +29,13 @@ import (
 	"k8s.io/apimachinery/pkg/util/wait"
 	clientset "k8s.io/client-go/kubernetes"
 	"k8s.io/client-go/tools/cache"
+	"k8s.io/client-go/util/retry"
 	"k8s.io/client-go/util/workqueue"
 	"k8s.io/klog/v2"
 	"sigs.k8s.io/controller-runtime/pkg/controller/controllerutil"
 
 	installv1alpha1 "github.com/daocloud/karmada-operator/pkg/apis/install/v1alpha1"
+	"github.com/daocloud/karmada-operator/pkg/constants"
 	"github.com/daocloud/karmada-operator/pkg/generated/clientset/versioned"
 	installinformers "github.com/daocloud/karmada-operator/pkg/generated/informers/externalversions/install/v1alpha1"
 	installliter "github.com/daocloud/karmada-operator/pkg/generated/listers/install/v1alpha1"
@@ -43,7 +45,7 @@ import (
 
 const (
 	// maximum retry times.
-	MaxInstallSyncRetry = 5
+	MaxInstallSyncRetry = 15
 	ControllerFinalizer = "karmada.install.io/installer-controller"
 	// DisableCascadingDeletionLabel is the label that determine whether to perform cascade deletion
 	DisableCascadingDeletionLabel = "karmada.install.io/disable-cascading-deletion"
@@ -96,7 +98,7 @@ func NewController(kmdClient versioned.Interface,
 func (c *Controller) UpdateEvent(older, newer interface{}) {
 	oldObj := older.(*installv1alpha1.KarmadaDeployment)
 	newObj := newer.(*installv1alpha1.KarmadaDeployment)
-	if newObj.DeletionTimestamp.IsZero() && equality.Semantic.DeepEqual(oldObj.Spec, newObj.Spec) {
+	if equality.Semantic.DeepEqual(oldObj.Spec, newObj.Spec) {
 		return
 	}
 	c.enqueue(newer)
@@ -187,7 +189,6 @@ func (c *Controller) syncHandler(key string) (err error) {
 		klog.ErrorS(err, "failed to split karmadaDeployment key", "key", key)
 		return err
 	}
-
 	kmd, err := c.installStore.Get(name)
 	if err != nil {
 		if apierrors.IsNotFound(err) {
@@ -196,24 +197,43 @@ func (c *Controller) syncHandler(key string) (err error) {
 		}
 		return err
 	}
+
+	if !kmd.DeletionTimestamp.IsZero() {
+		if !installv1alpha1.IsIntallModeFailed(kmd) && !installv1alpha1.IsConditionEmpty(kmd) {
+			if kmd.GetLabels()[DisableCascadingDeletionLabel] == "false" {
+				klog.InfoS("remove karmadaDeployment and karmada instance", "karmadaDeployment", kmd.Name)
+				if err := c.factory.SyncWithAction(kmd, factory.UninstallAction); err != nil {
+					return err
+				}
+			}
+		}
+
+		return retry.RetryOnConflict(retry.DefaultRetry, func() error {
+			kmd, err := c.installStore.Get(name)
+			if err != nil {
+				if apierrors.IsNotFound(err) {
+					return nil
+				}
+				return err
+			}
+
+			newer := kmd.DeepCopy()
+			if !controllerutil.ContainsFinalizer(newer, ControllerFinalizer) {
+				return nil
+			}
+			controllerutil.RemoveFinalizer(newer, ControllerFinalizer)
+
+			if _, err := c.kmdClient.InstallV1alpha1().KarmadaDeployments().Update(context.TODO(), newer, metav1.UpdateOptions{}); err != nil {
+				return err
+			}
+			return nil
+		})
+	}
+
 	err = c.initDefaultValues(kmd)
 	if err != nil {
 		klog.Errorf("failed to init karmadaDeployment default value : %v", err)
 		return err
-	}
-	if !kmd.DeletionTimestamp.IsZero() {
-		if kmd.GetLabels()[DisableCascadingDeletionLabel] == "false" {
-			klog.InfoS("remove karmadaDeployment and karmada instance", "karmadaDeployment", kmd.Name)
-			if err := c.factory.SyncWithAction(kmd, factory.UninstallAction); err != nil {
-				return err
-			}
-		}
-		controllerutil.ContainsFinalizer(kmd.DeepCopy(), ControllerFinalizer)
-		_ = controllerutil.RemoveFinalizer(kmd, ControllerFinalizer)
-		if _, err := c.kmdClient.InstallV1alpha1().KarmadaDeployments().Update(context.TODO(), kmd, metav1.UpdateOptions{}); err != nil {
-			return err
-		}
-		return nil
 	}
 	return c.factory.Sync(kmd)
 }
@@ -221,7 +241,7 @@ func (c *Controller) syncHandler(key string) (err error) {
 // initDefaultValues init karmadaDeployment default value
 func (c *Controller) initDefaultValues(kmd *installv1alpha1.KarmadaDeployment) error {
 	var err error
-	isUpdate := false
+	var isUpdate bool
 	// add default label karmadadeployments.install.karmada.io/disable-cascading-deletion:true
 	if kmd.GetLabels() == nil {
 		kmd.SetLabels(make(map[string]string))
@@ -239,13 +259,22 @@ func (c *Controller) initDefaultValues(kmd *installv1alpha1.KarmadaDeployment) e
 		kmd.Spec.ControlPlane.ServiceType = corev1.ServiceTypeNodePort
 	}
 
+	// set karmada version by default
+	if kmd.Spec.Images == nil {
+		kmd.Spec.Images = &installv1alpha1.Images{
+			KarmadaVersion: constants.DefaultKarmadaVersion,
+		}
+	} else if len(kmd.Spec.Images.KarmadaVersion) == 0 {
+		kmd.Spec.Images.KarmadaVersion = constants.DefaultKarmadaVersion
+	}
+
 	// ensure finalizer
 	if !controllerutil.ContainsFinalizer(kmd, ControllerFinalizer) && kmd.DeletionTimestamp.IsZero() {
 		_ = controllerutil.AddFinalizer(kmd, ControllerFinalizer)
 		isUpdate = true
 	}
 	if isUpdate {
-		kmd, err = c.kmdClient.InstallV1alpha1().KarmadaDeployments().Update(context.TODO(), kmd, metav1.UpdateOptions{})
+		_, err = c.kmdClient.InstallV1alpha1().KarmadaDeployments().Update(context.TODO(), kmd, metav1.UpdateOptions{})
 		if err != nil {
 			return err
 		}
