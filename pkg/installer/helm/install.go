@@ -57,11 +57,10 @@ const (
 )
 
 type installWorkflow struct {
-	release          *helm.Release
-	componentRelease *helm.Release
-	values           *Values
-	chartPath        string
-	destHost         string
+	release   *helm.Release
+	values    *Values
+	chartPath string
+	destHost  string
 
 	client        clientset.Interface
 	helmClient    helm.Client
@@ -247,14 +246,11 @@ func (install *installWorkflow) Wait(kmd *installv1alpha1.KarmadaDeployment) err
 		return err
 	}
 
-	karmadaApiserver := fmt.Sprintf("%s-karmada-apiserver", release.Name)
-	for _, m := range []string{karmadaApiserver, "etcd"} {
-		if _, err := waitForPodReady(install.client, release.Namespace, m); err != nil {
-			klog.ErrorS(err, "[helm-installer]:failed to wait ready", "component", m, "namespace", release.Namespace)
-			kmd = installv1alpha1.KarmadaDeploymentNotReady(kmd, installv1alpha1.ReconciliationFailedReason, err.Error())
-			status.SetStatus(install.kmdClient, kmd)
-			return err
-		}
+	if _, err := waitForPodReady(install.client, release.Namespace, "karmada-controller-manager"); err != nil {
+		klog.ErrorS(err, "[helm-installer]:failed to wait ready", "component", "karmada-controller-manager", "namespace", release.Namespace)
+		kmd = installv1alpha1.KarmadaDeploymentNotReady(kmd, installv1alpha1.ReconciliationFailedReason, err.Error())
+		status.SetStatus(install.kmdClient, kmd)
+		return err
 	}
 	return nil
 }
@@ -278,9 +274,10 @@ func waitForPodReady(client clientset.Interface, namespace, deploymentName strin
 	}
 
 	// TODO:
-	preconditionFunc := func(store cache.Store) (bool, error) { return true, nil }
+	// preconditionFunc := func(store cache.Store) (bool, error) { return true, nil }
 
 	conditionFunc := func(event watch.Event) (bool, error) {
+
 		if pod, ok := event.Object.(*corev1.Pod); ok {
 			for _, c := range pod.Status.Conditions {
 				if c.Type == corev1.PodReady && c.Status == corev1.ConditionTrue {
@@ -291,7 +288,7 @@ func waitForPodReady(client clientset.Interface, namespace, deploymentName strin
 		return false, fmt.Errorf("event object not of type Pod")
 	}
 
-	event, err := toolswatch.UntilWithSync(ctx, lw, &corev1.Pod{}, preconditionFunc, conditionFunc)
+	event, err := toolswatch.UntilWithSync(ctx, lw, &corev1.Pod{}, nil, conditionFunc)
 	if err != nil {
 		return nil, fmt.Errorf("timeout waiting for mudile %s to ready: %v", deploymentName, err)
 	}
