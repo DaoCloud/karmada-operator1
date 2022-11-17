@@ -295,13 +295,13 @@ func SetChartDefaultValues(v *Values, releaseNamespace string, externalHosts []s
 			cfssl.Image.Repository = constants.DefaultChartCfsslRepository
 		}
 		if len(cfssl.Image.Tag) == 0 {
-			cfssl.Image.Tag = constants.DefaultChartKubectlTag
+			cfssl.Image.Tag = constants.DefaultChartCfsslTag
 		}
 	}
 	v.Modules["cfssl"] = cfssl
 
 	// set all karmada image pollpolicy to "IfNotPresent"
-	for _, m := range Karmada {
+	for _, m := range append(Karmada, DockerIo...) {
 		module, exist := v.Modules[m]
 		if !exist || module.Image == nil {
 			module.Image = &Image{

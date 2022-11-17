@@ -201,7 +201,7 @@ func (install *installWorkflow) Deploy(kmd *installv1alpha1.KarmadaDeployment) e
 	}
 
 	values, err := install.values.ValuesWithHostInstallMode()
-	klog.V(5).Infof("chart values.ymal:\n%s", values)
+	klog.Infof("chart values.ymal:\n%s", values)
 
 	if err != nil {
 		klog.ErrorS(err, "[helm-installer]:failed to compose chart values")

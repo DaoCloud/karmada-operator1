@@ -68,7 +68,7 @@ func SetStatus(client versioned.Interface, kmd *installv1alpha1.KarmadaDeploymen
 		kmd.Status = status
 		kmdc := kmd.DeepCopy()
 
-		kmd, err = client.InstallV1alpha1().KarmadaDeployments().
+		_, err = client.InstallV1alpha1().KarmadaDeployments().
 			UpdateStatus(context.TODO(), kmdc, metav1.UpdateOptions{})
 
 		firstTry = false
