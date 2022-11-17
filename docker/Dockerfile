@@ -11,10 +11,7 @@ ENV GO111MODULE=on \
 
 COPY . .
 
-RUN CGO_ENABLED=0 GOOS=linux GOARCH=$(go env GOARCH) && echo "Building GoARCH of &GOARCH..." \
-    && go build -mod=vendor -o operator ./cmd
+RUN CGO_ENABLED=0 GOOS=linux GOARCH=$(go env GOARCH) go build -mod=vendor -o operator ./cmd
 
-FROM gcr.io/distroless/base:nonroot
-WORKDIR /
+FROM alpine:3.15
 COPY --from=build /workspace/operator /usr/local/bin/operator
-USER 65532:65532
