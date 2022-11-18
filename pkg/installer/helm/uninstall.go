@@ -73,6 +73,7 @@ func (un *uninstallWorkflow) Uninstall(kmd *installv1alpha1.KarmadaDeployment) e
 	// TODO: if the karmada release is not loead, ingore the err.
 	if err != nil && !strings.Contains(err.Error(), ReleaseNotLoadErrMsg) {
 		klog.ErrorS(err, "[helm-installer]:failed to uninstall karmada", "kmd", kmd.Name)
+		un.cleanup(kmd, release.Name, release.Namespace)
 		return err
 	}
 
@@ -95,14 +96,14 @@ func (un *uninstallWorkflow) cleanup(kd *installv1alpha1.KarmadaDeployment, rele
 	_ = un.destClient.RbacV1().ClusterRoleBindings().Delete(
 		context.TODO(), fmt.Sprintf("%s-pre-job", release), metav1.DeleteOptions{})
 
-	_ = un.destClient.CoreV1().Namespaces().Delete(
-		context.TODO(), namespace, metav1.DeleteOptions{})
-
 	// delete the secret of karmada instance kubeconfig on the cluster.
 	secretRef := kd.Status.SecretRef
 	if secretRef != nil {
 		un.client.CoreV1().Secrets(secretRef.Namespace).Delete(context.TODO(), secretRef.Name, metav1.DeleteOptions{})
 	}
+
+	_ = un.destClient.CoreV1().Namespaces().Delete(
+		context.TODO(), namespace, metav1.DeleteOptions{})
 
 	// TODO: delete kubeconfig from the directory
 	return nil

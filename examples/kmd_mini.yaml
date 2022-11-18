@@ -10,3 +10,5 @@ spec:
     endPointCfg:
       secretRef:
         name: "my-kubeconfig"
+  images:
+    dockerIoRegistry: "ghcr.m.daocloud.io"

@@ -86,9 +86,9 @@ func NewController(kmdClient versioned.Interface,
 
 	karmadaDeploymentInformer.Informer().AddEventHandler(
 		cache.ResourceEventHandlerFuncs{
-			AddFunc:    controller.enqueue,
+			AddFunc:    controller.AddEvent,
 			UpdateFunc: controller.UpdateEvent,
-			DeleteFunc: controller.enqueue,
+			DeleteFunc: controller.DeleteEvent,
 		},
 	)
 
@@ -98,10 +98,9 @@ func NewController(kmdClient versioned.Interface,
 func (c *Controller) UpdateEvent(older, newer interface{}) {
 	oldObj := older.(*installv1alpha1.KarmadaDeployment)
 	newObj := newer.(*installv1alpha1.KarmadaDeployment)
-	if equality.Semantic.DeepEqual(oldObj.Spec, newObj.Spec) {
-		return
+	if !newObj.DeletionTimestamp.IsZero() || !equality.Semantic.DeepEqual(oldObj.Spec, newObj.Spec) {
+		c.enqueue(newer)
 	}
-	c.enqueue(newer)
 }
 
 func (c *Controller) enqueue(obj interface{}) {
@@ -110,6 +109,14 @@ func (c *Controller) enqueue(obj interface{}) {
 		return
 	}
 	c.queue.Add(key)
+}
+
+func (c *Controller) DeleteEvent(obj interface{}) {
+	c.enqueue(obj)
+}
+
+func (c *Controller) AddEvent(obj interface{}) {
+	c.enqueue(obj)
 }
 
 func (c *Controller) Run(workers int, stopCh <-chan struct{}) {
