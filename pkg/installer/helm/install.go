@@ -52,7 +52,7 @@ var (
 )
 
 const (
-	DefaulTimeout  = time.Minute * 3
+	DefaulTimeout  = time.Minute * 5
 	WaitPodTimeout = time.Second * 60
 )
 
@@ -146,9 +146,29 @@ func fetchChart(helmClient helm.Client, source *ChartResource) (string, bool, er
 	stat, err := os.Stat(chartPath)
 	switch {
 	case os.IsNotExist(err):
+		klog.V(1).InfoS("chart repo url : %s", source.RepoURL)
 		chartPath, err = helmClient.PullWithRepoURL(source.RepoURL, source.Name, source.Version, repoPath)
 		if err != nil {
-			return chartPath, false, err
+			u, err := url.Parse(source.RepoURL)
+			if err != nil {
+				return chartPath, false, err
+			}
+
+			// TODO: It's compatible `http` and `https`
+			switch {
+			case u.Scheme == "http":
+				u.Scheme = "https"
+			case u.Scheme == "https":
+				u.Scheme = "http"
+			default:
+			}
+
+			klog.V(1).InfoS("chart repo url : %s", u.String())
+			chartPath, err = helmClient.PullWithRepoURL(u.String(), source.Name, source.Version, repoPath)
+			if err != nil {
+				return chartPath, false, err
+			}
+			return chartPath, true, nil
 		}
 		return chartPath, true, nil
 	case err != nil:
@@ -187,6 +207,7 @@ func (install *installWorkflow) Deploy(kmd *installv1alpha1.KarmadaDeployment) e
 		return err
 	}
 
+	releaseName := fmt.Sprintf("karmada-%s", kmd.Name)
 	ns, err := install.destClient.CoreV1().Namespaces().Get(context.TODO(), kmd.Spec.ControlPlane.Namespace, metav1.GetOptions{})
 	if err != nil {
 		if !apierrors.IsNotFound(err) {
@@ -198,6 +219,9 @@ func (install *installWorkflow) Deploy(kmd *installv1alpha1.KarmadaDeployment) e
 			&corev1.Namespace{ObjectMeta: metav1.ObjectMeta{Name: kmd.Spec.ControlPlane.Namespace}}, metav1.CreateOptions{}); err != nil {
 			return err
 		}
+	} else {
+		// TODO: delete the post-install, post-delete job and pre-install job
+		utils.Cleanup(install.destClient, releaseName, kmd.Spec.ControlPlane.Namespace)
 	}
 
 	values, err := install.values.ValuesWithHostInstallMode()
@@ -209,7 +233,7 @@ func (install *installWorkflow) Deploy(kmd *installv1alpha1.KarmadaDeployment) e
 		status.SetStatus(install.kmdClient, kmd)
 		return err
 	}
-	releaseName := fmt.Sprintf("karmada-%s", kmd.Name)
+
 	install.release, err = install.helmClient.UpgradeFromPath(install.chartPath,
 		releaseName, values, helm.UpgradeOptions{
 			Namespace:         ns.Name,

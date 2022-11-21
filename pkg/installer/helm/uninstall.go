@@ -19,7 +19,6 @@ package helm
 import (
 	"context"
 	"fmt"
-	"strings"
 	"time"
 
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
@@ -28,6 +27,7 @@ import (
 
 	installv1alpha1 "github.com/daocloud/karmada-operator/pkg/apis/install/v1alpha1"
 	"github.com/daocloud/karmada-operator/pkg/helm"
+	"github.com/daocloud/karmada-operator/pkg/utils"
 )
 
 const (
@@ -61,23 +61,29 @@ func (un *uninstallWorkflow) Uninstall(kmd *installv1alpha1.KarmadaDeployment) e
 
 	// if the release is deleted by user. it will skip the workflow.
 	if release == nil {
+		releaseName := fmt.Sprintf("karmada-%s", kmd.Name)
+		un.cleanup(kmd, releaseName, kmd.Spec.ControlPlane.Namespace)
+		un.destClient.CoreV1().Namespaces().Delete(context.TODO(), kmd.Spec.ControlPlane.Namespace, metav1.DeleteOptions{})
 		return nil
 	}
 
-	err = un.helmClient.Uninstall(release.Name, helm.UninstallOptions{
+	un.helmClient.Uninstall(release.Name, helm.UninstallOptions{
 		KeepHistory: false,
 		Namespace:   release.Namespace,
 		Timeout:     DefaultUninstallTimeOut,
 	})
 
 	// TODO: if the karmada release is not loead, ingore the err.
-	if err != nil && !strings.Contains(err.Error(), ReleaseNotLoadErrMsg) {
-		klog.ErrorS(err, "[helm-installer]:failed to uninstall karmada", "kmd", kmd.Name)
-		un.cleanup(kmd, release.Name, release.Namespace)
-		return err
-	}
+	// if err != nil && !strings.Contains(err.Error(), ReleaseNotLoadErrMsg) {
+	// 	klog.ErrorS(err, "[helm-installer]:failed to uninstall karmada", "kmd", kmd.Name)
+	// 	un.cleanup(kmd, release.Name, release.Namespace)
+	// 	return err
+	// }
 
-	return un.cleanup(kmd, release.Name, release.Namespace)
+	un.cleanup(kmd, release.Name, release.Namespace)
+
+	return un.destClient.CoreV1().Namespaces().Delete(
+		context.TODO(), release.Namespace, metav1.DeleteOptions{})
 }
 
 // There are some RBAC resources that are used by the `preJob` that
@@ -86,8 +92,8 @@ func (un *uninstallWorkflow) Uninstall(kmd *installv1alpha1.KarmadaDeployment) e
 // 2. clusterRole/karmada-pre-job
 // 3. clusterRoleBinding/karmada-pre-job
 // 4. ns/karmada-system
-func (un *uninstallWorkflow) cleanup(kd *installv1alpha1.KarmadaDeployment, release, namespace string) error {
-	_ = un.destClient.CoreV1().ServiceAccounts(kd.Spec.ControlPlane.Namespace).Delete(
+func (un *uninstallWorkflow) cleanup(kmd *installv1alpha1.KarmadaDeployment, release, namespace string) error {
+	_ = un.destClient.CoreV1().ServiceAccounts(kmd.Spec.ControlPlane.Namespace).Delete(
 		context.TODO(), fmt.Sprintf("%s-pre-job", release), metav1.DeleteOptions{})
 
 	_ = un.destClient.RbacV1().ClusterRoles().Delete(
@@ -96,14 +102,14 @@ func (un *uninstallWorkflow) cleanup(kd *installv1alpha1.KarmadaDeployment, rele
 	_ = un.destClient.RbacV1().ClusterRoleBindings().Delete(
 		context.TODO(), fmt.Sprintf("%s-pre-job", release), metav1.DeleteOptions{})
 
+	// TODO: delete the post-install, post-delete job and pre-install job
+	utils.Cleanup(un.destClient, release, namespace)
+
 	// delete the secret of karmada instance kubeconfig on the cluster.
-	secretRef := kd.Status.SecretRef
+	secretRef := kmd.Status.SecretRef
 	if secretRef != nil {
 		un.client.CoreV1().Secrets(secretRef.Namespace).Delete(context.TODO(), secretRef.Name, metav1.DeleteOptions{})
 	}
-
-	_ = un.destClient.CoreV1().Namespaces().Delete(
-		context.TODO(), namespace, metav1.DeleteOptions{})
 
 	// TODO: delete kubeconfig from the directory
 	return nil
