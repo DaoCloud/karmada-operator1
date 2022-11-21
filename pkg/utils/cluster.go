@@ -24,6 +24,8 @@ import (
 	"strings"
 
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
+	"k8s.io/apimachinery/pkg/labels"
+	"k8s.io/apimachinery/pkg/selection"
 	"k8s.io/client-go/kubernetes"
 	clientset "k8s.io/client-go/kubernetes"
 	"k8s.io/client-go/tools/clientcmd"
@@ -83,4 +85,25 @@ func NewClientForKubeconfig(kubeconfig []byte) (*clientset.Clientset, error) {
 	}
 
 	return clientset.NewForConfig(config)
+}
+
+func Cleanup(client clientset.Interface, release, namespace string) {
+	// TODO: delete the post-install, post-delete job and pre-install job
+	_ = client.BatchV1().Jobs(namespace).Delete(
+		context.TODO(), fmt.Sprintf("%s-post-install", release), metav1.DeleteOptions{})
+
+	_ = client.BatchV1().Jobs(namespace).Delete(
+		context.TODO(), fmt.Sprintf("%s-pre-install", release), metav1.DeleteOptions{})
+
+	_ = client.BatchV1().Jobs(namespace).Delete(
+		context.TODO(), fmt.Sprintf("%s-post-delete", release), metav1.DeleteOptions{})
+
+	requirements := make([]labels.Requirement, 0, 1)
+	r, _ := labels.NewRequirement("job-name", selection.Exists, []string{})
+	requirements = append(requirements, *r)
+	selector := labels.NewSelector()
+	selector = selector.Add(requirements...)
+
+	_ = client.CoreV1().Pods(namespace).DeleteCollection(
+		context.TODO(), metav1.DeleteOptions{}, metav1.ListOptions{LabelSelector: selector.String()})
 }
