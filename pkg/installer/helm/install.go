@@ -53,7 +53,7 @@ var (
 
 const (
 	DefaulTimeout  = time.Minute * 5
-	WaitPodTimeout = time.Second * 60
+	WaitPodTimeout = time.Second * 120
 )
 
 type installWorkflow struct {

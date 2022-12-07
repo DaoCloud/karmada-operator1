@@ -2,7 +2,7 @@ package constants
 
 const (
 	// Default karmada chart install system.
-	DefaultKarmadaVersion = "v1.3.0"
+	DefaultKarmadaVersion = "v1.4.0"
 	// Default karmada chart install system.
 	KarmadaNamespace = "karmada-system"
 	// karmada apiserver default port.
