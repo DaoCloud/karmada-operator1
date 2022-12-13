@@ -114,8 +114,8 @@ func NewSummaryManager(kmdName string, kmdClient versioned.Interface,
 func (m *SummaryManager) Run(shutdown <-chan struct{}) {
 	defer utilruntime.HandleCrash()
 
-	klog.InfoS("Start summary manager")
-	defer klog.InfoS("Shutting down summary manager")
+	klog.InfoS("Start summary manager for kmd", "kmd", m.kmdName)
+	defer klog.InfoS("Shutting down summary manager for kmd", "kmd", m.kmdName)
 
 	m.informerManager.Start()
 	if !m.WaitForCacheSync() {

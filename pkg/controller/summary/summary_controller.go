@@ -119,7 +119,7 @@ func (rc *SummaryController) UpdateEventfunc(older, newer interface{}) {
 	if !newObj.Status.ControlPlaneReady {
 		return
 	}
-	if newObj.DeletionTimestamp.IsZero() &&
+	if oldObj.Status.ControlPlaneReady && newObj.DeletionTimestamp.IsZero() &&
 		equality.Semantic.DeepEqual(oldObj.Status.SecretRef, newObj.Status.SecretRef) {
 		return
 	}
