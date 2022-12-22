@@ -70,7 +70,7 @@ type Image struct {
 }
 
 type ETCD struct {
-	Mode     string   `yaml:"-,omitempty"`
+	Mode     string   `yaml:"mode,omitempty"`
 	Internal Internal `yaml:"internal,omitempty"`
 }
 
@@ -174,9 +174,10 @@ func Convert_KarmadaDeployment_To_Values(kmd *installv1alpha1.KarmadaDeployment)
 	for _, module := range kmd.Spec.ControlPlane.Modules {
 		name := string(module.Name)
 		// TODO: if component is disabled, skip the loop.
-
 		m := Module{}
-		if module.Replicas != nil {
+		if module.Name == installv1alpha1.EtcdModuleName && module.Replicas != nil {
+			values.ETCD.Internal.ReplicaCount = module.Replicas
+		} else if module.Replicas != nil {
 			m.ReplicaCount = module.Replicas
 		}
 
@@ -201,8 +202,9 @@ func Convert_KarmadaDeployment_To_Values(kmd *installv1alpha1.KarmadaDeployment)
 			Tag:        tag,
 			PullPolicy: module.ImagePullPolicy,
 		}
-
-		values.Modules[name] = m
+		if module.Name != installv1alpha1.EtcdModuleName {
+			values.Modules[name] = m
+		}
 	}
 
 	for k, image := range modeImages {
