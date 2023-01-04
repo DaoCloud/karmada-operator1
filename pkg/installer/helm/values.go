@@ -194,13 +194,14 @@ func Convert_KarmadaDeployment_To_Values(kmd *installv1alpha1.KarmadaDeployment)
 			} else {
 				repository = image
 			}
+			modeImages[name] = &Image{
+				Registry:   registry,
+				Repository: repository,
+				Tag:        tag,
+			}
 		}
-
-		modeImages[name] = &Image{
-			Registry:   registry,
-			Repository: repository,
-			Tag:        tag,
-			PullPolicy: module.ImagePullPolicy,
+		if len(module.ImagePullPolicy) > 0 {
+			modeImages[name].PullPolicy = module.ImagePullPolicy
 		}
 		if module.Name != installv1alpha1.EtcdModuleName {
 			values.Modules[name] = m
