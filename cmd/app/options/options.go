@@ -89,9 +89,9 @@ func (o *Options) Flags() cliflag.NamedFlagSets {
 	genericfs.StringVar(&o.ClientConnection.ContentType, "kube-api-content-type", o.ClientConnection.ContentType, "Content type of requests sent to apiserver.")
 	genericfs.Float32Var(&o.ClientConnection.QPS, "kube-api-qps", o.ClientConnection.QPS, "QPS to use while talking with kubernetes apiserver.")
 	genericfs.Int32Var(&o.ClientConnection.Burst, "kube-api-burst", o.ClientConnection.Burst, "Burst to use while talking with kubernetes apiserver.")
-	genericfs.StringVar(&o.ChartRepoURL, "chart-repo-url", o.ChartRepoURL, "helm repo to karmada chart")
-	genericfs.StringVar(&o.ChartName, "chart-name", o.ChartName, "helm repo to karmada chart")
-	genericfs.StringVar(&o.ChartVersion, "chart-version", o.ChartVersion, "chart version to karmada")
+	genericfs.StringVar(&o.ChartRepoURL, "chart-repo-url", "https://release.daocloud.io/chartrepo/karmada", "helm repo to karmada chart")
+	genericfs.StringVar(&o.ChartName, "chart-name", "karmada", "helm repo to karmada chart")
+	genericfs.StringVar(&o.ChartVersion, "chart-version", "0.0.5", "chart version to karmada")
 
 	options.BindLeaderElectionFlags(&o.LeaderElection, genericfs)
 
