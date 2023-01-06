@@ -1,4 +1,4 @@
 package flect
 
-// Version holds Flect version number
-const Version = "v0.1.7"
+//Version holds Flect version number
+const Version = "v0.1.6"

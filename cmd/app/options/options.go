@@ -35,6 +35,7 @@ import (
 	"k8s.io/component-base/config/options"
 	componentbaseconfigv1alpha1 "k8s.io/component-base/config/v1alpha1"
 	"k8s.io/component-base/logs"
+	clientconfig "sigs.k8s.io/controller-runtime/pkg/client/config"
 )
 
 const (
@@ -110,11 +111,16 @@ func (o *Options) Validate() error {
 }
 
 func (o *Options) Config() (*config.Config, error) {
+	var err error
 	if err := o.Validate(); err != nil {
 		return nil, err
 	}
-
-	kubeconfig, err := clientcmd.BuildConfigFromFlags(o.Master, o.Kubeconfig)
+	var kubeconfig *restclient.Config
+	if len(o.Kubeconfig) == 0 {
+		kubeconfig, err = clientconfig.GetConfig()
+	} else {
+		kubeconfig, err = clientcmd.BuildConfigFromFlags(o.Master, o.Kubeconfig)
+	}
 	if err != nil {
 		return nil, err
 	}
