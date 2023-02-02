@@ -22,7 +22,6 @@ import (
 	"sync"
 	"time"
 
-	"k8s.io/apimachinery/pkg/api/equality"
 	apierrors "k8s.io/apimachinery/pkg/api/errors"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	utilruntime "k8s.io/apimachinery/pkg/util/runtime"
@@ -119,11 +118,14 @@ func (rc *SummaryController) UpdateEventfunc(older, newer interface{}) {
 	if !newObj.Status.ControlPlaneReady {
 		return
 	}
-	if oldObj.Status.ControlPlaneReady && newObj.DeletionTimestamp.IsZero() &&
-		equality.Semantic.DeepEqual(oldObj.Status.SecretRef, newObj.Status.SecretRef) {
-		return
+
+	if !oldObj.Status.ControlPlaneReady {
+		rc.enqueue(newer)
 	}
-	rc.enqueue(newer)
+
+	if !newObj.DeletionTimestamp.IsZero() && oldObj.DeletionTimestamp.IsZero() {
+		rc.enqueue(newer)
+	}
 }
 
 func (rc *SummaryController) Run(workers int, stopCh <-chan struct{}) {
@@ -209,6 +211,7 @@ func (rc *SummaryController) syncKmdStatusResource(key string) (bool, error) {
 		}
 		return false, err
 	}
+	kmd = kmd.DeepCopy()
 
 	if !kmd.DeletionTimestamp.IsZero() {
 		klog.InfoS("remove karmadaDeployment", "karmadaDeployment", kmd.Name)
