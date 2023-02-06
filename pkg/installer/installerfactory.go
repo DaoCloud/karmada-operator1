@@ -37,8 +37,6 @@ type InstallerFactory struct {
 	kmdClient     versioned.Interface
 	clientset     clientset.Interface
 	chartResource *helminstaller.ChartResource
-
-	installers map[string]Interface
 }
 
 func NewInstallerFactory(kmdClient versioned.Interface, clientset clientset.Interface, chartResource *helminstaller.ChartResource) *InstallerFactory {
@@ -46,7 +44,6 @@ func NewInstallerFactory(kmdClient versioned.Interface, clientset clientset.Inte
 		kmdClient:     kmdClient,
 		clientset:     clientset,
 		chartResource: chartResource,
-		installers:    make(map[string]Interface),
 	}
 }
 

@@ -45,7 +45,7 @@ import (
 
 const (
 	// maximum retry times.
-	MaxInstallSyncRetry = 15
+	MaxInstallSyncRetry = 30
 	ControllerFinalizer = "karmada.install.io/installer-controller"
 	// DisableCascadingDeletionLabel is the label that determine whether to perform cascade deletion
 	DisableCascadingDeletionLabel = "karmada.install.io/disable-cascading-deletion"
@@ -204,6 +204,8 @@ func (c *Controller) syncHandler(key string) (err error) {
 		}
 		return err
 	}
+
+	kmd = kmd.DeepCopy()
 
 	if !kmd.DeletionTimestamp.IsZero() {
 		if !installv1alpha1.IsIntallModeFailed(kmd) && !installv1alpha1.IsConditionEmpty(kmd) {

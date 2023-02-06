@@ -167,7 +167,7 @@ func StartControllers(c *config.CompletedConfig, stopCh <-chan struct{}) error {
 
 	informerFactory.Start(stopCh)
 
-	go operator.Run(3, stopCh)
+	go operator.Run(1, stopCh)
 	go summary.Run(1, stopCh)
 
 	<-stopCh

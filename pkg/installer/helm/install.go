@@ -112,7 +112,8 @@ func (install *installWorkflow) Preflight(kmd *installv1alpha1.KarmadaDeployment
 	klog.InfoS("[helm-installer] start proflight phase", "kmd", kmd.Name)
 
 	var err error
-	if err = status.SetStatusPhase(install.kmdClient, kmd, installv1alpha1.PreflightPhase); err != nil {
+	kmd.Status.Phase = installv1alpha1.PreflightPhase
+	if err = status.SetStatus(install.kmdClient, kmd); err != nil {
 		return err
 	}
 
@@ -203,7 +204,8 @@ func (c ChartResource) CleanRepoURL() string {
 func (install *installWorkflow) Deploy(kmd *installv1alpha1.KarmadaDeployment) error {
 	klog.InfoS("[helm-installer]:start deploy phase", "kmd", kmd.Name)
 
-	if err := status.SetStatusPhase(install.kmdClient, kmd, installv1alpha1.DeployingPhase); err != nil {
+	kmd.Status.Phase = installv1alpha1.DeployingPhase
+	if err := status.SetStatus(install.kmdClient, kmd); err != nil {
 		return err
 	}
 
@@ -246,7 +248,7 @@ func (install *installWorkflow) Deploy(kmd *installv1alpha1.KarmadaDeployment) e
 			DisableValidation: true,
 		})
 
-	if err != nil && !strings.Contains(err.Error(), ReleaseExistErrMsg) {
+	if err != nil {
 		klog.ErrorS(err, "[helm-installer]:failed to install karmada chart", "kmd", kmd.Name)
 		kmd = installv1alpha1.KarmadaDeploymentNotReady(kmd, installv1alpha1.HelmReleaseFailedReason, err.Error())
 		status.SetStatus(install.kmdClient, kmd)
@@ -266,7 +268,7 @@ func (install *installWorkflow) Wait(kmd *installv1alpha1.KarmadaDeployment) err
 	}
 
 	kmd.Status.Phase = installv1alpha1.WaitingPhase
-	if err := status.SetStatusPhase(install.kmdClient, kmd, installv1alpha1.WaitingPhase); err != nil {
+	if err := status.SetStatus(install.kmdClient, kmd); err != nil {
 		return err
 	}
 
@@ -301,15 +303,17 @@ func waitForPodReady(client clientset.Interface, namespace, deploymentName strin
 	// preconditionFunc := func(store cache.Store) (bool, error) { return true, nil }
 
 	conditionFunc := func(event watch.Event) (bool, error) {
+		pod, ok := event.Object.(*corev1.Pod)
+		if !ok {
+			return false, fmt.Errorf("event object not of type Pod")
+		}
 
-		if pod, ok := event.Object.(*corev1.Pod); ok {
-			for _, c := range pod.Status.Conditions {
-				if c.Type == corev1.PodReady && c.Status == corev1.ConditionTrue {
-					return true, nil
-				}
+		for _, c := range pod.Status.Conditions {
+			if c.Type == corev1.PodReady && c.Status == corev1.ConditionTrue {
+				return true, nil
 			}
 		}
-		return false, fmt.Errorf("event object not of type Pod")
+		return false, nil
 	}
 
 	event, err := toolswatch.UntilWithSync(ctx, lw, &corev1.Pod{}, nil, conditionFunc)
@@ -377,7 +381,8 @@ func (install *installWorkflow) Completed(kmd *installv1alpha1.KarmadaDeployment
 	}
 
 	kmd.Status.ControlPlaneReady = true
-	return status.SetStatusPhase(install.kmdClient, kmd, installv1alpha1.ControlPlaneReadyPhase)
+	kmd.Status.Phase = installv1alpha1.ControlPlaneReadyPhase
+	return status.SetStatus(install.kmdClient, kmd)
 }
 
 func (install *installWorkflow) GetRelease(kmd *installv1alpha1.KarmadaDeployment) (*helm.Release, error) {

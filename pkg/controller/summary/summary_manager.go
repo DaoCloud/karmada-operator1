@@ -31,7 +31,6 @@ import (
 	"k8s.io/apimachinery/pkg/runtime"
 	"k8s.io/apimachinery/pkg/runtime/schema"
 	utilruntime "k8s.io/apimachinery/pkg/util/runtime"
-	"k8s.io/apimachinery/pkg/util/wait"
 	"k8s.io/client-go/dynamic"
 	"k8s.io/klog/v2"
 
@@ -122,22 +121,17 @@ func (m *SummaryManager) Run(shutdown <-chan struct{}) {
 		return
 	}
 
-	go wait.Until(m.worker, time.Second, shutdown)
-
-	go func() {
-		<-shutdown
-		m.Shuntdown()
-	}()
-
-	<-m.close
+	m.worker(shutdown)
 }
 
 // worker is a loop to execute logic of collect resource. every time not to request
 // karmada apiserver and list resource from informer lister.
-func (m *SummaryManager) worker() {
+func (m *SummaryManager) worker(shutdown <-chan struct{}) {
 	for m.processNext() {
 		select {
 		case <-m.close:
+			return
+		case <-shutdown:
 			return
 		default:
 			// TODO: sleep one secend.
@@ -336,12 +330,11 @@ func (m *SummaryManager) WaitForCacheSync() bool {
 }
 
 func (m *SummaryManager) Shuntdown() {
-	klog.InfoS("Shutting down kmd summary controller")
+	klog.InfoS("Close the Summary manager for kmd", "kmd", m.kmdName)
 	m.closeOnce.Do(func() {
+		m.informerManager.Stop()
 		close(m.close)
 	})
-
-	m.informerManager.Stop()
 }
 
 func aggregateNodeSummary(nodeSummary *installv1alpha1.NodeSummary) *installv1alpha1.NodeSummary {
