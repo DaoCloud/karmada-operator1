@@ -265,7 +265,7 @@ func (c *Controller) initDefaultValues(kmd *installv1alpha1.KarmadaDeployment) e
 		kmd.Spec.ControlPlane.Namespace = kmd.Name + "-" + rand.String(5)
 	}
 	if len(kmd.Spec.ControlPlane.ServiceType) == 0 {
-		kmd.Spec.ControlPlane.ServiceType = corev1.ServiceTypeNodePort
+		kmd.Spec.ControlPlane.ServiceType = corev1.ServiceTypeClusterIP
 	}
 
 	// set karmada version by default
