@@ -92,6 +92,8 @@ func NewHelmInstaller(kmd *installv1alpha1.KarmadaDeployment, kmdClient versione
 		if err != nil {
 			return nil, err
 		}
+		config.Insecure = true
+		config.CAData = nil
 	}
 	kubeconfigPath, err := WriteKubeconfig(kubeconfig, kmd.Name)
 	if err != nil {
