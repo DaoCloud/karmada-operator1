@@ -103,6 +103,7 @@ func newConfigFlags(kubeconfig string, config *rest.Config, namespace string) *g
 		APIServer:   &config.Host,
 		CAFile:      &config.CAFile,
 		BearerToken: &config.BearerToken,
+		Insecure:    &config.Insecure,
 	}
 	if len(kubeconfig) > 0 {
 		flags.KubeConfig = &kubeconfig

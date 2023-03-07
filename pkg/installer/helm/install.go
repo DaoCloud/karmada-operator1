@@ -29,14 +29,9 @@ import (
 	corev1 "k8s.io/api/core/v1"
 	apierrors "k8s.io/apimachinery/pkg/api/errors"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
-	labels "k8s.io/apimachinery/pkg/labels"
-	"k8s.io/apimachinery/pkg/runtime"
 	"k8s.io/apimachinery/pkg/version"
-	"k8s.io/apimachinery/pkg/watch"
 	clientset "k8s.io/client-go/kubernetes"
-	"k8s.io/client-go/tools/cache"
 	"k8s.io/client-go/tools/clientcmd"
-	toolswatch "k8s.io/client-go/tools/watch"
 	"k8s.io/klog/v2"
 
 	installv1alpha1 "github.com/daocloud/karmada-operator/pkg/apis/install/v1alpha1"
@@ -91,12 +86,6 @@ func (install *installWorkflow) Install(kmd *installv1alpha1.KarmadaDeployment) 
 			return err
 		}
 		if err := install.Deploy(kmd); err != nil {
-			return err
-		}
-
-		fallthrough
-	case installv1alpha1.WaitingPhase:
-		if err := install.Wait(kmd); err != nil {
 			return err
 		}
 		if err := install.Completed(kmd); err != nil {
@@ -243,7 +232,7 @@ func (install *installWorkflow) Deploy(kmd *installv1alpha1.KarmadaDeployment) e
 			Install:           true,
 			Force:             true,
 			SkipCRDs:          false,
-			Wait:              false,
+			Wait:              true,
 			Atomic:            true,
 			DisableValidation: true,
 		})
@@ -258,76 +247,77 @@ func (install *installWorkflow) Deploy(kmd *installv1alpha1.KarmadaDeployment) e
 	return nil
 }
 
-func (install *installWorkflow) Wait(kmd *installv1alpha1.KarmadaDeployment) error {
-	klog.InfoS("[helm-installer]:start wait phase", "kmd", kmd.Name)
-	release, err := install.GetRelease(kmd)
-	if err != nil {
-		kmd = installv1alpha1.KarmadaDeploymentNotReady(kmd, installv1alpha1.HelmReleaseFailedReason, err.Error())
-		status.SetStatus(install.kmdClient, kmd)
-		return err
-	}
-
-	kmd.Status.Phase = installv1alpha1.WaitingPhase
-	if err := status.SetStatus(install.kmdClient, kmd); err != nil {
-		return err
-	}
-
-	if _, err := waitForPodReady(install.client, release.Namespace, "karmada-controller-manager"); err != nil {
-		klog.ErrorS(err, "[helm-installer]:failed to wait ready", "component", "karmada-controller-manager", "namespace", release.Namespace)
-		kmd = installv1alpha1.KarmadaDeploymentNotReady(kmd, installv1alpha1.ReconciliationFailedReason, err.Error())
-		status.SetStatus(install.kmdClient, kmd)
-		return err
-	}
-	return nil
-}
-
-func waitForPodReady(client clientset.Interface, namespace, deploymentName string) (*corev1.Pod, error) {
-	ctx, cancelFun := context.WithTimeout(context.TODO(), WaitPodTimeout)
-	defer cancelFun()
-
-	label := labels.Set{"app": deploymentName}
-	lw := &cache.ListWatch{
-		ListFunc: func(options metav1.ListOptions) (runtime.Object, error) {
-			return client.CoreV1().Pods(namespace).List(ctx, metav1.ListOptions{
-				LabelSelector: label.String(),
-			})
-		},
-		WatchFunc: func(options metav1.ListOptions) (watch.Interface, error) {
-			return client.CoreV1().Pods(namespace).Watch(ctx, metav1.ListOptions{
-				LabelSelector: label.String(),
-			})
-		},
-	}
-
-	// TODO:
-	// preconditionFunc := func(store cache.Store) (bool, error) { return true, nil }
-
-	conditionFunc := func(event watch.Event) (bool, error) {
-		pod, ok := event.Object.(*corev1.Pod)
-		if !ok {
-			return false, fmt.Errorf("event object not of type Pod")
-		}
-
-		for _, c := range pod.Status.Conditions {
-			if c.Type == corev1.PodReady && c.Status == corev1.ConditionTrue {
-				return true, nil
-			}
-		}
-		return false, nil
-	}
-
-	event, err := toolswatch.UntilWithSync(ctx, lw, &corev1.Pod{}, nil, conditionFunc)
-	if err != nil {
-		return nil, fmt.Errorf("timeout waiting for mudile %s to ready: %v", deploymentName, err)
-	}
-	if event == nil {
-		return nil, nil
-	}
-	if pod, ok := event.Object.(*corev1.Pod); ok {
-		return pod, nil
-	}
-	return nil, fmt.Errorf("event object not of type Pod")
-}
+//
+//func (install *installWorkflow) Wait(kmd *installv1alpha1.KarmadaDeployment) error {
+//	klog.InfoS("[helm-installer]:start wait phase", "kmd", kmd.Name)
+//	release, err := install.GetRelease(kmd)
+//	if err != nil {
+//		kmd = installv1alpha1.KarmadaDeploymentNotReady(kmd, installv1alpha1.HelmReleaseFailedReason, err.Error())
+//		status.SetStatus(install.kmdClient, kmd)
+//		return err
+//	}
+//
+//	kmd.Status.Phase = installv1alpha1.WaitingPhase
+//	if err := status.SetStatus(install.kmdClient, kmd); err != nil {
+//		return err
+//	}
+//
+//	if _, err := waitForPodReady(install.client, release.Namespace, "karmada-controller-manager"); err != nil {
+//		klog.ErrorS(err, "[helm-installer]:failed to wait ready", "component", "karmada-controller-manager", "namespace", release.Namespace)
+//		kmd = installv1alpha1.KarmadaDeploymentNotReady(kmd, installv1alpha1.ReconciliationFailedReason, err.Error())
+//		status.SetStatus(install.kmdClient, kmd)
+//		return err
+//	}
+//	return nil
+//}
+//
+//func waitForPodReady(client clientset.Interface, namespace, deploymentName string) (*corev1.Pod, error) {
+//	ctx, cancelFun := context.WithTimeout(context.TODO(), DefaulTimeout)
+//	defer cancelFun()
+//
+//	label := labels.Set{"app": deploymentName}
+//	lw := &cache.ListWatch{
+//		ListFunc: func(options metav1.ListOptions) (runtime.Object, error) {
+//			return client.CoreV1().Pods(namespace).List(ctx, metav1.ListOptions{
+//				LabelSelector: label.String(),
+//			})
+//		},
+//		WatchFunc: func(options metav1.ListOptions) (watch.Interface, error) {
+//			return client.CoreV1().Pods(namespace).Watch(ctx, metav1.ListOptions{
+//				LabelSelector: label.String(),
+//			})
+//		},
+//	}
+//
+//	// TODO:
+//	// preconditionFunc := func(store cache.Store) (bool, error) { return true, nil }
+//
+//	conditionFunc := func(event watch.Event) (bool, error) {
+//		pod, ok := event.Object.(*corev1.Pod)
+//		if !ok {
+//			return false, fmt.Errorf("event object not of type Pod")
+//		}
+//
+//		for _, c := range pod.Status.Conditions {
+//			if c.Type == corev1.PodReady && c.Status == corev1.ConditionTrue {
+//				return true, nil
+//			}
+//		}
+//		return false, nil
+//	}
+//
+//	event, err := toolswatch.UntilWithSync(ctx, lw, &corev1.Pod{}, nil, conditionFunc)
+//	if err != nil {
+//		return nil, fmt.Errorf("timeout waiting for mudile %s to ready: %v", deploymentName, err)
+//	}
+//	if event == nil {
+//		return nil, nil
+//	}
+//	if pod, ok := event.Object.(*corev1.Pod); ok {
+//		return pod, nil
+//	}
+//	return nil, fmt.Errorf("event object not of type Pod")
+//}
 
 func (install *installWorkflow) Completed(kmd *installv1alpha1.KarmadaDeployment) error {
 	klog.InfoS("[helm-installer]:start completed phase", "kmd", kmd.Name)
