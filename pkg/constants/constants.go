@@ -17,4 +17,5 @@ const (
 	DefaultChartKubectlTag        = "v1.25.3"
 	DefaultChartCfsslRepository   = "daocloud/cfssl"
 	DefaultChartCfsslTag          = "v1.6.3"
+	NamespaceEnvKey               = "POD_NAMESPACE"
 )

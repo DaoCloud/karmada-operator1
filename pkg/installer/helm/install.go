@@ -358,6 +358,14 @@ func (install *installWorkflow) Completed(kmd *installv1alpha1.KarmadaDeployment
 	// TODO: How to get the karmada version?
 	kmd.Status.KarmadaVersion = constants.DefaultKarmadaVersion
 
+	// FIXME
+	config, _ := clientcmd.Load(configByte)
+	// use port forwarding tunnel.
+	config.Clusters[fmt.Sprintf("karmada-%s-apiserver", kmd.Name)].Server = fmt.Sprintf("https://%s.%s.svc.cluster.local:5443", kmd.Name, utils.GetEnvWithDefault(constants.NamespaceEnvKey, "kairship-system"))
+	config.Clusters[fmt.Sprintf("karmada-%s-apiserver", kmd.Name)].CertificateAuthorityData = nil
+	config.Clusters[fmt.Sprintf("karmada-%s-apiserver", kmd.Name)].InsecureSkipTLSVerify = true
+	configByte, _ = clientcmd.Write(*config)
+
 	secretCopy, err := CreateSecretForExternalKubeconfig(install.client, configByte, kmd)
 	if err != nil {
 		klog.ErrorS(err, "[helm-installer]:failed create secret for external kubeconfig")

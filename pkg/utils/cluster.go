@@ -107,3 +107,12 @@ func Cleanup(client clientset.Interface, release, namespace string) {
 	_ = client.CoreV1().Pods(namespace).DeleteCollection(
 		context.TODO(), metav1.DeleteOptions{}, metav1.ListOptions{LabelSelector: selector.String()})
 }
+
+// GetEnvWithDefault get the string type value of key from env.
+func GetEnvWithDefault(key, defaultValue string) string {
+	value := strings.TrimSpace(os.Getenv(key))
+	if len(value) == 0 {
+		return defaultValue
+	}
+	return value
+}
