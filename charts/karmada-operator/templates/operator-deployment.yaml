@@ -33,6 +33,11 @@ spec:
       - name: {{ include "karmada.operator.fullname" . }}
         image: {{ template "karmada.operator.image" . }}
         imagePullPolicy: {{ .Values.operator.image.pullPolicy }}
+        env:
+        - name: POD_NAMESPACE
+          valueFrom:
+            fieldRef:
+              fieldPath: metadata.namespace
         command:
         - /usr/local/bin/operator
         - --leader-elect-resource-namespace={{ .Release.Namespace }}
