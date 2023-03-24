@@ -464,6 +464,14 @@ func CreateSecretForExternalKubeconfig(client clientset.Interface, data []byte, 
 		ObjectMeta: metav1.ObjectMeta{
 			GenerateName: fmt.Sprintf("%s-kubeconfig-", kmd.Name),
 			Namespace:    kmd.Namespace,
+			OwnerReferences: []metav1.OwnerReference{
+				{
+					APIVersion: installv1alpha1.GroupVersion.String(),
+					Kind:       "KarmadaDeployment",
+					Name:       kmd.Name,
+					UID:        kmd.UID,
+				},
+			},
 		},
 		Data: map[string][]byte{
 			"kubeconfig": data,
