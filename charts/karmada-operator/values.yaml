@@ -48,7 +48,7 @@ operator:
   image:
     registry: release.daocloud.io
     repository: karmada/karmada-operator
-    tag: "v0.1.15"
+    tag: "v0.1.16"
     ## Specify a imagePullPolicy
     ## Defaults to 'Always' if image tag is 'latest', else set to 'IfNotPresent'
     ##
