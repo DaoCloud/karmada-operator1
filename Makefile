@@ -46,7 +46,7 @@ ifeq ($(VERSION), "")
     LATEST_TAG=$(shell git describe --tags --abbrev=8)
     ifeq ($(LATEST_TAG),)
         # Forked repo may not sync tags from upstream, so give it a default tag to make CI happy.
-        VERSION="v0.1.16"
+        VERSION="v0.1.17"
     else
         VERSION=$(LATEST_TAG)
     endif
