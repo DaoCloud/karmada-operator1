@@ -2,6 +2,25 @@ apiVersion: v1
 entries:
   karmada-operator:
   - apiVersion: v2
+    appVersion: v0.1.18
+    created: "2023-05-22T10:23:50.022544772Z"
+    dependencies:
+    - name: common
+      repository: https://charts.bitnami.com/bitnami
+      version: 1.16.1
+    description: A Helm chart for karmada-operator
+    digest: fc5de9aa8aab0db29537742da002c20f725679246d9360e57aca26f111e88486
+    maintainers:
+    - name: DaoCloud
+      url: https://github.com/DaoCloud
+    name: karmada-operator
+    sources:
+    - https://github.com/DaoCloud/karmada-operator
+    type: application
+    urls:
+    - https://github.com/DaoCloud/karmada-operator1/releases/download/karmada-operator-0.1.18/karmada-operator-0.1.18.tgz
+    version: 0.1.18
+  - apiVersion: v2
     appVersion: v0.1.17
     created: "2023-04-21T06:39:37.555193973Z"
     dependencies:
@@ -134,4 +153,4 @@ entries:
     urls:
     - https://github.com/DaoCloud/karmada-operator1/releases/download/karmada-operator-0.1.11/karmada-operator-0.1.11.tgz
     version: 0.1.11
-generated: "2023-04-21T06:39:37.555404476Z"
+generated: "2023-05-22T10:23:50.022597573Z"
